@@ -168,8 +168,8 @@ RingBuffer::RingBuffer(unsigned ring_size, size_t item_size) :
 	_ring_size((ring_size + 1) * item_size),
 	_item_size(item_size),
 	_buf(new char[_ring_size]),
- 	_head(ring_size),
- 	_tail(ring_size)
+ 	_head(_ring_size),
+ 	_tail(_ring_size)
 {}
 
 RingBuffer::~RingBuffer()
@@ -199,7 +199,7 @@ RingBuffer::full()
 unsigned
 RingBuffer::size()
 {
-	return (_buf != nullptr) ? _ring_size : 0; 
+	return (_buf != nullptr) ? (_ring_size / _item_size) : 0; 
 }
 
 void
@@ -493,8 +493,8 @@ RingBuffer::resize(unsigned new_size)
 	old_buffer = _buf;
 	_buf = new_buffer;
 	_ring_size = new_ring_size;
-	_head = new_size;
-	_tail = new_size;
+	_head = new_ring_size;
+	_tail = new_ring_size;
 	delete[] old_buffer;
 	return true;
 }
