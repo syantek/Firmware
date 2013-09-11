@@ -37,6 +37,8 @@
  * A flexible ringbuffer class.
  */
 
+#include <stdint.h>
+
 #pragma once
 
 class RingBuffer {
@@ -166,7 +168,7 @@ private:
 
 RingBuffer::RingBuffer(unsigned ring_size, size_t item_size) :
 	_ring_size((ring_size + 1) * item_size),
-	_item_size(item_size),
+	_item_size(item_size ? item_size : 1),
 	_buf(new char[_ring_size]),
  	_head(_ring_size),
  	_tail(_ring_size)
