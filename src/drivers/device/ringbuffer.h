@@ -199,7 +199,7 @@ RingBuffer::full()
 unsigned
 RingBuffer::size()
 {
-	return (_buf != nullptr) ? (_ring_size / _item_size) : 0; 
+	return (_buf != nullptr) ? (_ring_size / _item_size) - 1 : 0; 
 }
 
 void
