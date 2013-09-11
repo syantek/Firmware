@@ -466,7 +466,7 @@ RingBuffer::space(void)
 		tail = _tail;
 	} while (head != _head);
 
-	unsigned reported_space = (tail >= head) ? (_ring_size - (tail - head)) : (head - tail - 1);
+	unsigned reported_space = (tail >= head) ? (_ring_size - (tail - head)) : (head - tail - _item_size);
 
 	return reported_space / _item_size;
 }
