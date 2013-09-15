@@ -125,6 +125,8 @@ MODULES		+= lib/geo
 # https://pixhawk.ethz.ch/px4/dev/debug_values
 #MODULES		+= examples/px4_mavlink_debug
 
+MODULES			+= examples/transition
+
 #
 # Transitional support - add commands from the NuttX export archive.
 #
