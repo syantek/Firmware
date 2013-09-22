@@ -315,7 +315,7 @@ private:
 		int rc_map_return_sw;
 		int rc_map_assisted_sw;
 		int rc_map_mission_sw;
-
+		int rc_map_acro_sw;
 //		int rc_map_offboard_ctrl_mode_sw;
 
 		int rc_map_flaps;
@@ -360,7 +360,7 @@ private:
 		param_t rc_map_return_sw;
 		param_t rc_map_assisted_sw;
 		param_t rc_map_mission_sw;
-
+		param_t rc_map_acro_sw;
 //		param_t rc_map_offboard_ctrl_mode_sw;
 
 		param_t rc_map_flaps;
@@ -569,17 +569,17 @@ Sensors::Sensors() :
 	_parameter_handles.rc_map_yaw 	= param_find("RC_MAP_YAW");
 	_parameter_handles.rc_map_throttle = param_find("RC_MAP_THROTTLE");
 
-	/* mandatory mode switches, mapped to channel 5 and 6 per default */
+	/* mandatory mode switch, mapped to channel 5 per default */
 	_parameter_handles.rc_map_mode_sw = param_find("RC_MAP_MODE_SW");
-	_parameter_handles.rc_map_return_sw = param_find("RC_MAP_RETURN_SW");
-
-	_parameter_handles.rc_map_flaps = param_find("RC_MAP_FLAPS");
 
 	/* optional mode switches, not mapped per default */
+	_parameter_handles.rc_map_return_sw = param_find("RC_MAP_RETURN_SW");
 	_parameter_handles.rc_map_assisted_sw = param_find("RC_MAP_ASSIST_SW");
 	_parameter_handles.rc_map_mission_sw = param_find("RC_MAP_MISSIO_SW");
-
+	_parameter_handles.rc_map_acro_sw = param_find("RC_MAP_ACRO_SW");
 //	_parameter_handles.rc_map_offboard_ctrl_mode_sw = param_find("RC_MAP_OFFB_SW");
+
+	_parameter_handles.rc_map_flaps = param_find("RC_MAP_FLAPS");
 
 	_parameter_handles.rc_map_aux1 = param_find("RC_MAP_AUX1");
 	_parameter_handles.rc_map_aux2 = param_find("RC_MAP_AUX2");
@@ -726,13 +726,17 @@ Sensors::parameters_update()
 		warnx("Failed getting mission sw chan index");
 	}
 
-	if (param_get(_parameter_handles.rc_map_flaps, &(_parameters.rc_map_flaps)) != OK) {
-		warnx("Failed getting flaps chan index");
+	if (param_get(_parameter_handles.rc_map_acro_sw, &(_parameters.rc_map_acro_sw)) != OK) {
+		warnx("Failed getting acro sw chan index");
 	}
 
 //	if (param_get(_parameter_handles.rc_map_offboard_ctrl_mode_sw, &(_parameters.rc_map_offboard_ctrl_mode_sw)) != OK) {
 //		warnx("Failed getting offboard control mode sw chan index");
 //	}
+
+	if (param_get(_parameter_handles.rc_map_flaps, &(_parameters.rc_map_flaps)) != OK) {
+		warnx("Failed getting flaps chan index");
+	}
 
 	param_get(_parameter_handles.rc_map_aux1, &(_parameters.rc_map_aux1));
 	param_get(_parameter_handles.rc_map_aux2, &(_parameters.rc_map_aux2));
@@ -754,10 +758,10 @@ Sensors::parameters_update()
 	_rc.function[RETURN] = _parameters.rc_map_return_sw - 1;
 	_rc.function[ASSISTED] = _parameters.rc_map_assisted_sw - 1;
 	_rc.function[MISSION] = _parameters.rc_map_mission_sw - 1;
+	_rc.function[ACRO] = _parameters.rc_map_acro_sw - 1;
+	//	_rc.function[OFFBOARD_MODE] = _parameters.rc_map_offboard_ctrl_mode_sw - 1;
 
 	_rc.function[FLAPS] = _parameters.rc_map_flaps - 1;
-
-//	_rc.function[OFFBOARD_MODE] = _parameters.rc_map_offboard_ctrl_mode_sw - 1;
 
 	_rc.function[AUX_1] = _parameters.rc_map_aux1 - 1;
 	_rc.function[AUX_2] = _parameters.rc_map_aux2 - 1;
@@ -1330,9 +1334,11 @@ Sensors::ppm_poll()
 		manual_control.return_switch = NAN;
 		manual_control.assisted_switch = NAN;
 		manual_control.mission_switch = NAN;
+		manual_control.acro_switch = NAN;
 //		manual_control.auto_offboard_input_switch = NAN;
 
 		manual_control.flaps = NAN;
+
 		manual_control.aux1 = NAN;
 		manual_control.aux2 = NAN;
 		manual_control.aux3 = NAN;
@@ -1441,6 +1447,9 @@ Sensors::ppm_poll()
 
 		/* mission switch input */
 		manual_control.mission_switch = limit_minus_one_to_one(_rc.chan[_rc.function[MISSION]].scaled);
+
+		/* acro switch input */
+		manual_control.acro_switch = limit_minus_one_to_one(_rc.chan[_rc.function[ACRO]].scaled);
 
 		/* flaps */
 		if (_rc.function[FLAPS] >= 0) {

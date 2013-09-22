@@ -230,7 +230,7 @@ main_state_transition(struct vehicle_status_s *current_state, main_state_t new_m
 
 			/* need at minimum altitude estimate */
 			if (current_state->condition_local_altitude_valid ||
-				current_state->condition_global_position_valid) {
+			    current_state->condition_global_position_valid) {
 				ret = TRANSITION_CHANGED;
 			}
 
@@ -240,7 +240,7 @@ main_state_transition(struct vehicle_status_s *current_state, main_state_t new_m
 
 			/* need at minimum local position estimate */
 			if (current_state->condition_local_position_valid ||
-				current_state->condition_global_position_valid) {
+			    current_state->condition_global_position_valid) {
 				ret = TRANSITION_CHANGED;
 			}
 
@@ -291,6 +291,18 @@ navigation_state_transition(struct vehicle_status_s *status, navigation_state_t 
 		switch (new_navigation_state) {
 		case NAVIGATION_STATE_DIRECT:
 			ret = TRANSITION_CHANGED;
+			control_mode->flag_control_rates_enabled = false;
+			control_mode->flag_control_attitude_enabled = false;
+			control_mode->flag_control_velocity_enabled = false;
+			control_mode->flag_control_position_enabled = false;
+			control_mode->flag_control_altitude_enabled = false;
+			control_mode->flag_control_climb_rate_enabled = false;
+			control_mode->flag_control_manual_enabled = true;
+			control_mode->flag_control_auto_enabled = false;
+			break;
+
+		case NAVIGATION_STATE_RATES:
+			ret = TRANSITION_CHANGED;
 			control_mode->flag_control_rates_enabled = true;
 			control_mode->flag_control_attitude_enabled = false;
 			control_mode->flag_control_velocity_enabled = false;
@@ -301,7 +313,7 @@ navigation_state_transition(struct vehicle_status_s *status, navigation_state_t 
 			control_mode->flag_control_auto_enabled = false;
 			break;
 
-		case NAVIGATION_STATE_STABILIZE:
+		case NAVIGATION_STATE_ATTITUDE:
 			ret = TRANSITION_CHANGED;
 			control_mode->flag_control_rates_enabled = true;
 			control_mode->flag_control_attitude_enabled = true;

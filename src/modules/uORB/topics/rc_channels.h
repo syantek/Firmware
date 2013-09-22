@@ -55,29 +55,29 @@
  */
 #define RC_CHANNELS_MAX   15
 
-/** 
+/**
  * This defines the mapping of the RC functions.
  * The value assigned to the specific function corresponds to the entry of
  * the channel array chan[].
  */
-enum RC_CHANNELS_FUNCTION
-{
-  THROTTLE = 0,
-  ROLL     = 1,
-  PITCH    = 2,
-  YAW      = 3,
-  MODE = 4,
-  RETURN = 5,
-  ASSISTED = 6,
-  MISSION = 7,
-  OFFBOARD_MODE = 8,
-  FLAPS   = 9,
-  AUX_1   = 10,
-  AUX_2   = 11,
-  AUX_3   = 12,
-  AUX_4   = 13,
-  AUX_5   = 14,
-  RC_CHANNELS_FUNCTION_MAX /**< indicates the number of functions. There can be more functions than RC channels. */
+enum RC_CHANNELS_FUNCTION {
+	THROTTLE = 0,
+	ROLL     = 1,
+	PITCH    = 2,
+	YAW      = 3,
+	MODE = 4,
+	RETURN = 5,
+	ASSISTED = 6,
+	MISSION = 7,
+	ACRO = 8,
+	OFFBOARD_MODE = 9,
+	FLAPS   = 10,
+	AUX_1   = 11,
+	AUX_2   = 12,
+	AUX_3   = 13,
+	AUX_4   = 14,
+	AUX_5   = 15,
+	RC_CHANNELS_FUNCTION_MAX /**< indicates the number of functions. There can be more functions than RC channels. */
 };
 
 /**
@@ -88,16 +88,16 @@ enum RC_CHANNELS_FUNCTION
 struct rc_channels_s {
 
 	uint64_t timestamp;                 /**< In microseconds since boot time. */
-  uint64_t timestamp_last_valid;      /**< timestamp of last valid RC signal. */
-  struct {
-    float scaled;                     /**< Scaled to -1..1 (throttle: 0..1) */
-  } chan[RC_CHANNELS_MAX];
-  uint8_t chan_count;                 /**< number of valid channels */
+	uint64_t timestamp_last_valid;      /**< timestamp of last valid RC signal. */
+	struct {
+		float scaled;                     /**< Scaled to -1..1 (throttle: 0..1) */
+	} chan[RC_CHANNELS_MAX];
+	uint8_t chan_count;                 /**< number of valid channels */
 
-  /*String array to store the names of the functions*/
-  char function_name[RC_CHANNELS_FUNCTION_MAX][20];
-  int8_t function[RC_CHANNELS_FUNCTION_MAX];
-  uint8_t rssi;                       /**< Overall receive signal strength */
+	/*String array to store the names of the functions*/
+	char function_name[RC_CHANNELS_FUNCTION_MAX][20];
+	int8_t function[RC_CHANNELS_FUNCTION_MAX];
+	uint8_t rssi;                       /**< Overall receive signal strength */
 }; /**< radio control channels. */
 
 /**

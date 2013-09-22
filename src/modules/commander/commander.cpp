@@ -203,9 +203,9 @@ void control_status_leds(vehicle_status_s *status, actuator_armed_s *armed, bool
 
 void check_valid(hrt_abstime timestamp, hrt_abstime timeout, bool valid_in, bool *valid_out, bool *changed);
 
-void check_mode_switches(struct manual_control_setpoint_s *sp_man, struct vehicle_status_s *current_status);
+void check_mode_switches(struct manual_control_setpoint_s *sp_man, struct vehicle_status_s *status);
 
-transition_result_t check_main_state_machine(struct vehicle_status_s *current_status);
+transition_result_t check_main_state_machine(struct vehicle_status_s *status);
 
 void print_reject_mode(const char *msg);
 
@@ -469,27 +469,28 @@ void handle_command(struct vehicle_status_s *status, const struct safety_s *safe
 			break;
 		}
 
-	case VEHICLE_CMD_COMPONENT_ARM_DISARM:
-	{
-		transition_result_t arming_res = TRANSITION_NOT_CHANGED;
-		if (!armed->armed && ((int)(cmd->param1 + 0.5f)) == 1) {
-			if (safety->safety_switch_available && !safety->safety_off) {
-				print_reject_arm("NOT ARMING: Press safety switch first.");
-				arming_res = TRANSITION_DENIED;
+	case VEHICLE_CMD_COMPONENT_ARM_DISARM: {
+			transition_result_t arming_res = TRANSITION_NOT_CHANGED;
 
-			} else {
-				arming_res = arming_state_transition(status, safety, ARMING_STATE_ARMED, armed);
-			}
+			if (!armed->armed && ((int)(cmd->param1 + 0.5f)) == 1) {
+				if (safety->safety_switch_available && !safety->safety_off) {
+					print_reject_arm("NOT ARMING: Press safety switch first.");
+					arming_res = TRANSITION_DENIED;
 
-			if (arming_res == TRANSITION_CHANGED) {
-				mavlink_log_info(mavlink_fd, "[cmd] ARMED by component arm cmd");
-				result = VEHICLE_CMD_RESULT_ACCEPTED;
-			} else {
-				mavlink_log_info(mavlink_fd, "[cmd] REJECTING component arm cmd");
-				result = VEHICLE_CMD_RESULT_TEMPORARILY_REJECTED;
+				} else {
+					arming_res = arming_state_transition(status, safety, ARMING_STATE_ARMED, armed);
+				}
+
+				if (arming_res == TRANSITION_CHANGED) {
+					mavlink_log_info(mavlink_fd, "[cmd] ARMED by component arm cmd");
+					result = VEHICLE_CMD_RESULT_ACCEPTED;
+
+				} else {
+					mavlink_log_info(mavlink_fd, "[cmd] REJECTING component arm cmd");
+					result = VEHICLE_CMD_RESULT_TEMPORARILY_REJECTED;
+				}
 			}
 		}
-	}
 		break;
 
 	default:
@@ -959,6 +960,7 @@ int commander_thread_main(int argc, char *argv[])
 
 				if (armed.armed) {
 					arming_state_transition(&status, &safety, ARMING_STATE_ARMED_ERROR, &armed);
+
 				} else {
 					arming_state_transition(&status, &safety, ARMING_STATE_STANDBY_ERROR, &armed);
 				}
@@ -1244,12 +1246,14 @@ int commander_thread_main(int argc, char *argv[])
 		counter++;
 
 		int blink_state = blink_msg_state();
+
 		if (blink_state > 0) {
 			/* blinking LED message, don't touch LEDs */
 			if (blink_state == 2) {
 				/* blinking LED message completed, restore normal state */
 				control_status_leds(&status, &armed, true);
 			}
+
 		} else {
 			/* normal state */
 			control_status_leds(&status, &armed, status_changed);
@@ -1308,6 +1312,7 @@ control_status_leds(vehicle_status_s *status, actuator_armed_s *armed, bool chan
 	/* driving rgbled */
 	if (changed) {
 		bool set_normal_color = false;
+
 		/* set mode */
 		if (status->arming_state == ARMING_STATE_ARMED) {
 			rgbled_set_mode(RGBLED_MODE_ON);
@@ -1332,6 +1337,7 @@ control_status_leds(vehicle_status_s *status, actuator_armed_s *armed, bool chan
 				if (status->battery_warning == VEHICLE_BATTERY_WARNING_LOW) {
 					rgbled_set_color(RGBLED_COLOR_AMBER);
 				}
+
 				/* VEHICLE_BATTERY_WARNING_CRITICAL handled as ARMING_STATE_ARMED_ERROR / ARMING_STATE_STANDBY_ERROR */
 
 			} else {
@@ -1378,72 +1384,83 @@ control_status_leds(vehicle_status_s *status, actuator_armed_s *armed, bool chan
 }
 
 void
-check_mode_switches(struct manual_control_setpoint_s *sp_man, struct vehicle_status_s *current_status)
+check_mode_switches(struct manual_control_setpoint_s *sp_man, struct vehicle_status_s *status)
 {
-	/* main mode switch */
+	/* MAIN MODE switch */
 	if (!isfinite(sp_man->mode_switch)) {
 		warnx("mode sw not finite");
-		current_status->mode_switch = MODE_SWITCH_MANUAL;
+		status->mode_switch = MODE_SWITCH_MANUAL;
 
 	} else if (sp_man->mode_switch > STICK_ON_OFF_LIMIT) {
-		current_status->mode_switch = MODE_SWITCH_AUTO;
+		status->mode_switch = MODE_SWITCH_AUTO;
 
 	} else if (sp_man->mode_switch < -STICK_ON_OFF_LIMIT) {
-		current_status->mode_switch = MODE_SWITCH_MANUAL;
+		status->mode_switch = MODE_SWITCH_MANUAL;
 
 	} else {
-		current_status->mode_switch = MODE_SWITCH_ASSISTED;
+		status->mode_switch = MODE_SWITCH_ASSISTED;
 	}
 
-	/* land switch */
+	/* RTL switch */
 	if (!isfinite(sp_man->return_switch)) {
-		current_status->return_switch = RETURN_SWITCH_NONE;
+		status->return_switch = RETURN_SWITCH_NONE;
 
 	} else if (sp_man->return_switch > STICK_ON_OFF_LIMIT) {
-		current_status->return_switch = RETURN_SWITCH_RETURN;
+		status->return_switch = RETURN_SWITCH_RETURN;
 
 	} else {
-		current_status->return_switch = RETURN_SWITCH_NONE;
+		status->return_switch = RETURN_SWITCH_NONE;
 	}
 
-	/* assisted switch */
+	/* ASSISTED switch */
 	if (!isfinite(sp_man->assisted_switch)) {
-		current_status->assisted_switch = ASSISTED_SWITCH_SEATBELT;
+		status->assisted_switch = ASSISTED_SWITCH_SEATBELT;
 
 	} else if (sp_man->assisted_switch > STICK_ON_OFF_LIMIT) {
-		current_status->assisted_switch = ASSISTED_SWITCH_EASY;
+		status->assisted_switch = ASSISTED_SWITCH_EASY;
 
 	} else {
-		current_status->assisted_switch = ASSISTED_SWITCH_SEATBELT;
+		status->assisted_switch = ASSISTED_SWITCH_SEATBELT;
 	}
 
-	/* mission switch  */
+	/* MISSION switch  */
 	if (!isfinite(sp_man->mission_switch)) {
-		current_status->mission_switch = MISSION_SWITCH_MISSION;
+		status->mission_switch = MISSION_SWITCH_MISSION;
 
 	} else if (sp_man->mission_switch > STICK_ON_OFF_LIMIT) {
-		current_status->mission_switch = MISSION_SWITCH_NONE;
+		status->mission_switch = MISSION_SWITCH_NONE;
 
 	} else {
-		current_status->mission_switch = MISSION_SWITCH_MISSION;
+		status->mission_switch = MISSION_SWITCH_MISSION;
+	}
+
+	/* ACRO switch */
+	if (!isfinite(sp_man->acro_switch)) {
+		status->acro_switch = ACRO_SWITCH_MANUAL;
+
+	} else if (sp_man->acro_switch > STICK_ON_OFF_LIMIT) {
+		status->acro_switch = ACRO_SWITCH_ACRO;
+
+	} else {
+		status->acro_switch = ACRO_SWITCH_MANUAL;
 	}
 }
 
 transition_result_t
-check_main_state_machine(struct vehicle_status_s *current_status)
+check_main_state_machine(struct vehicle_status_s *status)
 {
 	/* evaluate the main state machine */
 	transition_result_t res = TRANSITION_DENIED;
 
-	switch (current_status->mode_switch) {
+	switch (status->mode_switch) {
 	case MODE_SWITCH_MANUAL:
-		res = main_state_transition(current_status, MAIN_STATE_MANUAL);
+		res = main_state_transition(status, MAIN_STATE_MANUAL);
 		// TRANSITION_DENIED is not possible here
 		break;
 
 	case MODE_SWITCH_ASSISTED:
-		if (current_status->assisted_switch == ASSISTED_SWITCH_EASY) {
-			res = main_state_transition(current_status, MAIN_STATE_EASY);
+		if (status->assisted_switch == ASSISTED_SWITCH_EASY) {
+			res = main_state_transition(status, MAIN_STATE_EASY);
 
 			if (res != TRANSITION_DENIED)
 				break;	// changed successfully or already in this state
@@ -1452,34 +1469,34 @@ check_main_state_machine(struct vehicle_status_s *current_status)
 			print_reject_mode("EASY");
 		}
 
-		res = main_state_transition(current_status, MAIN_STATE_SEATBELT);
+		res = main_state_transition(status, MAIN_STATE_SEATBELT);
 
 		if (res != TRANSITION_DENIED)
 			break;	// changed successfully or already in this mode
 
-		if (current_status->assisted_switch != ASSISTED_SWITCH_EASY)	// don't print both messages
+		if (status->assisted_switch != ASSISTED_SWITCH_EASY)	// don't print both messages
 			print_reject_mode("SEATBELT");
 
 		// else fallback to MANUAL
-		res = main_state_transition(current_status, MAIN_STATE_MANUAL);
+		res = main_state_transition(status, MAIN_STATE_MANUAL);
 		// TRANSITION_DENIED is not possible here
 		break;
 
 	case MODE_SWITCH_AUTO:
-		res = main_state_transition(current_status, MAIN_STATE_AUTO);
+		res = main_state_transition(status, MAIN_STATE_AUTO);
 
 		if (res != TRANSITION_DENIED)
 			break;	// changed successfully or already in this state
 
 		// else fallback to SEATBELT (EASY likely will not work too)
 		print_reject_mode("AUTO");
-		res = main_state_transition(current_status, MAIN_STATE_SEATBELT);
+		res = main_state_transition(status, MAIN_STATE_SEATBELT);
 
 		if (res != TRANSITION_DENIED)
 			break;	// changed successfully or already in this state
 
 		// else fallback to MANUAL
-		res = main_state_transition(current_status, MAIN_STATE_MANUAL);
+		res = main_state_transition(status, MAIN_STATE_MANUAL);
 		// TRANSITION_DENIED is not possible here
 		break;
 
@@ -1624,7 +1641,13 @@ check_navigation_state_machine(struct vehicle_status_s *status, struct vehicle_c
 		} else {
 			switch (status->main_state) {
 			case MAIN_STATE_MANUAL:
-				res = navigation_state_transition(status, status->is_rotary_wing ? NAVIGATION_STATE_STABILIZE : NAVIGATION_STATE_DIRECT, control_mode);
+				if (status->acro_switch == ACRO_SWITCH_ACRO) {
+					res = navigation_state_transition(status, NAVIGATION_STATE_RATES, control_mode);
+
+				} else {
+					res = navigation_state_transition(status, status->is_rotary_wing ? NAVIGATION_STATE_ATTITUDE : NAVIGATION_STATE_DIRECT, control_mode);
+				}
+
 				break;
 
 			case MAIN_STATE_SEATBELT:

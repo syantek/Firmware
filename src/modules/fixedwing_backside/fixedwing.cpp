@@ -167,7 +167,7 @@ void BlockMultiModeBacksideAutopilot::update()
 
 	// handle autopilot modes
 	if (_status.navigation_state == NAVIGATION_STATE_AUTO_MISSION ||
-	    _status.navigation_state == NAVIGATION_STATE_STABILIZE) {	// TODO use vehicle_control_mode here?
+	    _status.navigation_state == NAVIGATION_STATE_ATTITUDE) {	// TODO use vehicle_control_mode here?
 
 		// update guidance
 		_guide.update(_pos, _att, _posCmd.current, _lastPosCmd.current);
@@ -230,7 +230,7 @@ void BlockMultiModeBacksideAutopilot::update()
 		_actuators.control[CH_ELV] = _manual.pitch;
 		_actuators.control[CH_RDR] = _manual.yaw;
 		_actuators.control[CH_THR] = _manual.throttle;
-	} else if (_status.navigation_state == NAVIGATION_STATE_STABILIZE) {	// TODO use vehicle_control_mode here?
+	} else if (_status.navigation_state == NAVIGATION_STATE_ATTITUDE) {	// TODO use vehicle_control_mode here?
 		// calculate velocity, XXX should be airspeed, but using ground speed for now
 		// for the purpose of control we will limit the velocity feedback between
 		// the min/max velocity
