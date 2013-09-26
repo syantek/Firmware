@@ -115,7 +115,7 @@ arming_state_transition(struct vehicle_status_s *status, const struct safety_s *
 			/* allow arming from STANDBY and IN-AIR-RESTORE */
 			if ((status->arming_state == ARMING_STATE_STANDBY
 			     || status->arming_state == ARMING_STATE_IN_AIR_RESTORE)
-			    && (!safety->safety_switch_available || safety->safety_off)) { /* only allow arming if safety is off */
+			    && ((status->hil_state == HIL_STATE_ON) || (!safety->safety_switch_available || safety->safety_off))) { /* only allow arming if safety is off or if in HIL mode*/
 				ret = TRANSITION_CHANGED;
 				armed->armed = true;
 				armed->ready_to_arm = true;
