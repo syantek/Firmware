@@ -90,6 +90,7 @@
 #include "logbuffer.h"
 #include "sdlog2_format.h"
 #include "sdlog2_messages.h"
+#include "sdlog2_version.h"
 
 #define LOGBUFFER_WRITE_AND_COUNT(_msg) if (logbuffer_write(&lb, &log_msg, LOG_PACKET_SIZE(_msg))) { \
 		log_msgs_written++; \
@@ -182,6 +183,10 @@ static void sdlog2_stop_log(void);
  */
 static void write_formats(int fd);
 
+/**
+ * Write version message to log file.
+ */
+static void write_version(int fd);
 
 static bool file_exist(const char *filename);
 
@@ -359,6 +364,9 @@ static void *logwriter_thread(void *arg)
 	/* write log messages formats */
 	write_formats(log_file);
 
+	/* write version */
+	write_version(log_file);
+
 	int poll_count = 0;
 
 	void *read_ptr;
@@ -487,14 +495,13 @@ void sdlog2_stop_log()
 	sdlog2_status();
 }
 
-
 void write_formats(int fd)
 {
 	/* construct message format packet */
 	struct {
 		LOG_PACKET_HEADER;
 		struct log_format_s body;
-	} log_format_packet = {
+	} log_msg_format = {
 		LOG_PACKET_HEADER_INIT(LOG_FORMAT_MSG),
 	};
 
@@ -502,9 +509,29 @@ void write_formats(int fd)
 	int i;
 
 	for (i = 0; i < log_formats_num; i++) {
-		log_format_packet.body = log_formats[i];
-		log_bytes_written += write(fd, &log_format_packet, sizeof(log_format_packet));
+		log_msg_format.body = log_formats[i];
+		log_bytes_written += write(fd, &log_msg_format, sizeof(log_msg_format));
 	}
+
+	fsync(fd);
+}
+
+void write_version(int fd)
+{
+	/* construct version message */
+	struct {
+		LOG_PACKET_HEADER;
+		struct log_VER_s body;
+	} log_msg_VER = {
+		LOG_PACKET_HEADER_INIT(127),
+	};
+
+	/* fill message format packet for each format and write to log */
+	int i;
+
+	strncpy(log_msg_VER.body.fw_git, FW_GIT, sizeof(log_msg_VER.body.fw_git));
+	strncpy(log_msg_VER.body.arch, HW_ARCH, sizeof(log_msg_VER.body.arch));
+	log_bytes_written += write(fd, &log_msg_VER, sizeof(log_msg_VER));
 
 	fsync(fd);
 }
@@ -582,6 +609,15 @@ int sdlog2_thread_main(int argc, char *argv[])
 	if (create_logfolder()) {
 		errx(1, "unable to create logging folder, exiting.");
 	}
+
+	const char *converter_in = "/etc/logging/conv.zip";
+	char* converter_out = malloc(120);
+	sprintf(converter_out, "%s/conv.zip", folder_path);
+
+	if (file_copy(converter_in, converter_out)) {
+		errx(1, "unable to copy conversion scripts, exiting.");
+	}
+	free(converter_out);
 
 	/* only print logging path, important to find log file later */
 	warnx("logging to directory: %s", folder_path);
@@ -1251,7 +1287,7 @@ int file_copy(const char *file_old, const char *file_new)
 	fclose(source);
 	fclose(target);
 
-	return ret;
+	return OK;
 }
 
 void handle_command(struct vehicle_command_s *cmd)
