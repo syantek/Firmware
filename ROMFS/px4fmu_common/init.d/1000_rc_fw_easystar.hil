@@ -3,7 +3,7 @@
 # USB HIL start
 #
 
-echo "[HIL] HILStar starting in state-HIL mode.."
+echo "[HIL] HILStar starting.."
 
 #
 # Load default params for this platform
@@ -32,6 +32,9 @@ then
 	param set FW_T_SINK_MAX 5.0
 	param set FW_T_SINK_MIN 4.0
 	param set FW_Y_ROLLFF 1.1
+	param set FW_L1_PERIOD 16
+	param set RC_SCALE_ROLL 1.0
+	param set RC_SCALE_PITCH 1.0
 
 	param set SYS_AUTOCONFIG 0
 	param save
@@ -67,6 +70,11 @@ fi
 # Start the sensors (depends on orb, px4io)
 #
 sh /etc/init.d/rc.sensors
+
+#
+# Start the attitude estimator (depends on orb)
+#
+att_pos_estimator_ekf start
  
 #
 # Load mixer and start controllers (depends on px4io)
