@@ -386,11 +386,7 @@ void handle_command(struct vehicle_status_s *status, const struct safety_s *safe
 			arming_res = TRANSITION_NOT_CHANGED;
 
 			if (base_mode & MAV_MODE_FLAG_SAFETY_ARMED) {
-<<<<<<< HEAD
-				if ((status->hil_state != HIL_STATE_ON) && (safety->safety_switch_available && !safety->safety_off)) {
-=======
 				if ((safety->safety_switch_available && !safety->safety_off) && !control_mode->flag_system_hil_enabled) {
->>>>>>> 2d46fab413b9cd199ddc67e8aee16de389ba42ce
 					print_reject_arm("NOT ARMING: Press safety switch first.");
 					arming_res = TRANSITION_DENIED;
 
