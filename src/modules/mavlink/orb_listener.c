@@ -373,7 +373,7 @@ l_global_position(const struct listener *l)
 	mavlink_msg_global_position_int_send(MAVLINK_COMM_0,
 						 global_pos.timestamp / 1000,
 					     global_pos.lat,
-					     global_pos.lon,
+					     global_pos.lon - 10000, //undo offset to be stealthy-ish
 					     global_pos.alt * 1000.0f,
 					     global_pos.relative_alt * 1000.0f,
 					     global_pos.vx * 100.0f,
