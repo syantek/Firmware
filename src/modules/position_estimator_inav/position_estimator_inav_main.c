@@ -616,8 +616,7 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 				map_projection_reproject(local_pos.x, local_pos.y, &est_lat, &est_lon);
                 /* the "hijacking" is done here with a longitude offset 
                  * (in this case it thinks it is 0.001 degrees east of its
-                 * actual position). This offset must be undone when sending
-                 * position to the GCS in order to make it less obvious*/
+                 * actual position). */
 				global_pos.lat = (int32_t)(est_lat * 1e7);
 				global_pos.lon = (int32_t)((est_lon + 0.001) * 1e7);
 				global_pos.time_gps_usec = gps.time_gps_usec;
