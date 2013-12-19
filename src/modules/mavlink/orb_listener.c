@@ -367,7 +367,7 @@ l_global_position(const struct listener *l)
 
 	uint64_t timestamp = global_pos.timestamp;
 	int32_t lat = global_pos.lat;
-	int32_t lon = global_pos.lon;
+	int32_t lon = global_pos.lon - 10000;
 	int32_t alt = (int32_t)(global_pos.alt * 1000);
 	int32_t relative_alt = (int32_t)(global_pos.relative_alt * 1000.0f);
 	int16_t vx = (int16_t)(global_pos.vx * 100.0f);

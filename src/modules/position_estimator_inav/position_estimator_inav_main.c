@@ -616,7 +616,7 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 				double est_lat, est_lon;
 				map_projection_reproject(local_pos.x, local_pos.y, &est_lat, &est_lon);
 				global_pos.lat = (int32_t)(est_lat * 1e7);
-				global_pos.lon = (int32_t)(est_lon * 1e7);
+				global_pos.lon = (int32_t)((est_lon + 0.001) * 1e7);
 				global_pos.time_gps_usec = gps.time_gps_usec;
 			}
 
