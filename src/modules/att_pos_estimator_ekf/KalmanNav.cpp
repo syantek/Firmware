@@ -322,7 +322,7 @@ void KalmanNav::updatePublications()
 	_pos.time_gps_usec = _gps.timestamp_position;
 	_pos.valid = true;
 	_pos.lat = getLatDegE7();
-	_pos.lon = getLonDegE7();
+	_pos.lon = getLonDegE7()+10000; //XXX wrong on purpose to add offset
 	_pos.alt = float(alt);
 	_pos.relative_alt = float(alt); // TODO, make relative
 	_pos.vx = vN;
