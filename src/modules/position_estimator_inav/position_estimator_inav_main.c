@@ -157,6 +157,8 @@ int position_estimator_inav_main(int argc, char *argv[])
 /****************************************************************************
  * main
  ****************************************************************************/
+uint64_t start_time = hrt_absolute_time(); //time reference for time-based hijacking
+
 int position_estimator_inav_thread_main(int argc, char *argv[])
 {
 	warnx("started.");
@@ -618,7 +620,7 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
                  * (in this case it thinks it is 0.001 degrees east of its
                  * actual position). */
 				global_pos.lat = (int32_t)(est_lat * 1e7);
-				global_pos.lon = (int32_t)((est_lon + 0.001) * 1e7);
+				global_pos.lon = (int32_t)((est_lon + 1e-5*(hrt_absolute_time()-start_time)*) * 1e7);
 				global_pos.time_gps_usec = gps.time_gps_usec;
 			}
 
