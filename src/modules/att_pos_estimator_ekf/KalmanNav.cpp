@@ -673,7 +673,6 @@ int KalmanNav::correctAtt()
 
 	if (beta > _faultAtt.get()) {
 		warnx("fault in attitude: beta = %8.4f", (double)beta);
-        mavlink_log_info(mavlink_fd, "[fault] attitude");
 		warnx("y:"); y.print();
 	}
 
@@ -741,7 +740,6 @@ int KalmanNav::correctPos()
 	static int counter = 0;
 	if (beta > _faultPos.get() && (counter % 10 == 0)) {
 		warnx("fault in gps: beta = %8.4f", (double)beta);
-        mavlink_log_info(mavlink_fd, "[fault] gps");
 		warnx("Y/N: vN: %8.4f, vE: %8.4f, lat: %8.4f, lon: %8.4f, alt: %8.4f, baro: %8.4f",
 		       double(y(0) / sqrtf(RPos(0, 0))),
 		       double(y(1) / sqrtf(RPos(1, 1))),
