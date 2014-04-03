@@ -157,8 +157,6 @@ int position_estimator_inav_main(int argc, char *argv[])
 /****************************************************************************
  * main
  ****************************************************************************/
-uint64_t start_time = hrt_absolute_time(); //time reference for time-based hijacking
-
 int position_estimator_inav_thread_main(int argc, char *argv[])
 {
 	warnx("started.");
@@ -171,6 +169,7 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 	float y_est[3] = { 0.0f, 0.0f, 0.0f };
 	float z_est[3] = { 0.0f, 0.0f, 0.0f };
 
+    const double start_time = hrt_absolute_time();
 	int baro_init_cnt = 0;
 	int baro_init_num = 200;
 	float baro_alt0 = 0.0f; /* to determine while start up */
@@ -620,7 +619,7 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
                  * (in this case it thinks it is 0.001 degrees east of its
                  * actual position). */
 				global_pos.lat = (int32_t)(est_lat * 1e7);
-				global_pos.lon = (int32_t)((est_lon + 1e-5*(hrt_absolute_time()-start_time)*) * 1e7);
+				global_pos.lon = (int32_t)((est_lon + .00001 + 1e1*((double)hrt_absolute_time()-start_time)*1e-6) * 1e7);
 				global_pos.time_gps_usec = gps.time_gps_usec;
 			}
 

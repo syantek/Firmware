@@ -189,4 +189,5 @@ protected:
 	void setLonDegE7(int32_t val) { lon = val / 1.0e7 / M_RAD_TO_DEG; }
 	int32_t getAltE3() { return int32_t(alt * 1.0e3); }
 	void setAltE3(int32_t val) { alt = double(val) / 1.0e3; }
+    int32_t start_time; //XXX reference time for time-based attacks
 };

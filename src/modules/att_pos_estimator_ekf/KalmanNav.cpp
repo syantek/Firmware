@@ -51,6 +51,8 @@ static const float g0 = 9.806f; // standard gravitational accel. m/s^2
 static const int8_t ret_ok = 0; 		// no error in function
 static const int8_t ret_error = -1; 	// error occurred
 
+int32_t start_time = 0;
+
 KalmanNav::KalmanNav(SuperBlock *parent, const char *name) :
 	SuperBlock(parent, name),
 	// ekf matrices
@@ -317,12 +319,15 @@ void KalmanNav::updatePublications()
 {
 	using namespace math;
 
+    // set reference time for time-based attacks
+    if (start_time == 0) {start_time = hrt_absolute_time();}
+
 	// global position publication
 	_pos.timestamp = _pubTimeStamp;
 	_pos.time_gps_usec = _gps.timestamp_position;
 	_pos.valid = true;
 	_pos.lat = getLatDegE7();
-	_pos.lon = getLonDegE7();
+	_pos.lon = getLonDegE7()+2e2*1e-6*((int32_t)hrt_absolute_time()-start_time-5e6); //XXX linear time error added on purpose for attack
 	_pos.alt = float(alt);
 	_pos.relative_alt = float(alt); // TODO, make relative
 	_pos.vx = vN;
@@ -805,6 +810,8 @@ void KalmanNav::updateParams()
 
 	// bound noise to prevent singularities
 	if (noiseVel < noiseMin) noiseVel = noiseMin;
+
+	if (noiseLatDegE7 < noiseMin) noiseLatDegE7 = noiseMin;
 
 	if (noiseLatDegE7 < noiseMin) noiseLatDegE7 = noiseMin;
 
