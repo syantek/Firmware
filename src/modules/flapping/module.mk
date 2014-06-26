@@ -32,11 +32,11 @@
 ############################################################################
 
 #
-# Flapping wing (S1) controller
+# segway controller
 #
 
 MODULE_COMMAND	= flapping
 
 SRCS		= flapping_main.cpp \
-		  flapping.cpp \
+		  BlockFlappingController.cpp \
 		  params.c

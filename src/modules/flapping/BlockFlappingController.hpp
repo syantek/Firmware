@@ -1,6 +1,7 @@
 /****************************************************************************
  *
- *   Copyright (C) 2012 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2014 PX4 Development Team. All rights reserved.
+ *   Author: James Goppert, Scott Yantek
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,49 +32,35 @@
  *
  ****************************************************************************/
 
-/**
- * @file flapping.hpp
- *
- * Controller library code
- */
 
 #pragma once
 
-#include <controllib/blocks.hpp>
 #include <controllib/uorb/blocks.hpp>
 
-namespace control
-{
+using namespace control;
 
-namespace flapping
-{
-
-class BlockFlappingController : public control:BlockUorbEnabledAutopilot {
+class BlockFlappingController : public control::BlockUorbEnabledAutopilot {
 public:
 	BlockFlappingController() :
-		BlockUorbEnabledAutopilot(NULL,"FLAP")
+		BlockUorbEnabledAutopilot(NULL,"FL"),
+		th2v(this, "TH2V"),
+		q2v(this, "Q2V"),
+		_attPoll(),
 		_timeStamp(0)
+	{
+		_attPoll.fd = _att.getHandle();
+		_attPoll.events = POLLIN;
+	}
 	void update();
 private:
 	enum {CH_LEFT, CH_RIGHT};
+	BlockPI th2v;
+	BlockP q2v;
+	struct pollfd _attPoll;
 	uint64_t _timeStamp;
-	int i;
-	int cycle;
-	int setCycle();
-	float _aileron;
-	float _elevator;
-	float _throttle;
-	float _rudder;
-	float wingAngleLeft;
-	float wingAngleRight;
-	float pulseWidthLeft;
-	float pulseWidthRight;
-	void flapping();
-	void battery();
-	void pulse();
+	uint64_t _cycleStartTimeStamp;
+	void cyclePeriodFunction(float throttle, float & cyclePeriod);
+	void flappingFunction(float t, float aileron,
+			float elevator, float throttle,
+			float & wingLeft, float & wingRight);
 };
-
-} // namespace flapping
-
-} // namespace control
-
