@@ -60,7 +60,7 @@ nshterm_main(int argc, char *argv[])
         printf("Usage: nshterm <device>\n");
         exit(1);
     }
-    uint8_t retries = 0;
+    unsigned retries = 0;
     int fd = -1;
 
     /* try the first 30 seconds */
@@ -87,7 +87,7 @@ nshterm_main(int argc, char *argv[])
 
     /* Back up the original uart configuration to restore it after exit */
     if ((termios_state = tcgetattr(fd, &uart_config)) < 0) {
-        warnx("ERROR get termios config %s: %d\n", argv[1], termios_state);
+        warnx("ERR get config %s: %d\n", argv[1], termios_state);
         close(fd);
         return -1;
     }
@@ -96,7 +96,7 @@ nshterm_main(int argc, char *argv[])
     uart_config.c_oflag |= (ONLCR | OPOST/* | OCRNL*/);
 
     if ((termios_state = tcsetattr(fd, TCSANOW, &uart_config)) < 0) {
-        warnx("ERROR setting baudrate / termios config for %s (tcsetattr)\n", argv[1]);
+        warnx("ERR set config %s\n", argv[1]);
         close(fd);
         return -1;
     }

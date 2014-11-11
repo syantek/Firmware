@@ -134,3 +134,37 @@ PARAM_DEFINE_FLOAT(FL_THR2FREQ, 3.3f); // norm. throttle to freq gain
  * @group Flapping
  */
 PARAM_DEFINE_FLOAT(FL_MIN_FREQ, 1.7f); // min flapping freq
+
+/**
+ *
+ * Learning Index 1
+ *
+ * Index of the first of three parameters to learn to minimize power consumption
+ *
+ * @min 0.0f
+ * @max 13.0f
+ * @group Flapping
+ */
+PARAM_DEFINE_FLOAT(FL_LRN1, 0.0f);
+/**
+ *
+ * Learning Index 2
+ *
+ * Index of the second of three parameters to learn to minimize power consumption
+ *
+ * @min 0.0f
+ * @max 13.0f
+ * @group Flapping
+ */
+PARAM_DEFINE_FLOAT(FL_LRN2, 1.0f);
+/**
+ *
+ * Learning Index 3
+ *
+ * Index of the third of three parameters to learn to minimize power consumption
+ *
+ * @min 0.0f
+ * @max 13.0f
+ * @group Flapping
+ */
+PARAM_DEFINE_FLOAT(FL_LRN3, 2.0f);

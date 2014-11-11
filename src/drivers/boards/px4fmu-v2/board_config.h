@@ -108,6 +108,8 @@ __BEGIN_DECLS
 #define GPIO_SPI_CS_MPU		(GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_2MHz|GPIO_OUTPUT_SET|GPIO_PORTC|GPIO_PIN2)
 #define GPIO_SPI_CS_EXT0	(GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_50MHz|GPIO_OUTPUT_SET|GPIO_PORTE|GPIO_PIN4)
 #define GPIO_SPI_CS_EXT1	(GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_50MHz|GPIO_OUTPUT_SET|GPIO_PORTC|GPIO_PIN14)
+#define GPIO_SPI_CS_EXT2	(GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_50MHz|GPIO_OUTPUT_SET|GPIO_PORTC|GPIO_PIN15)
+#define GPIO_SPI_CS_EXT3	(GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_50MHz|GPIO_OUTPUT_SET|GPIO_PORTC|GPIO_PIN13)
 
 #define PX4_SPI_BUS_SENSORS	1
 #define PX4_SPI_BUS_EXT		4
@@ -121,10 +123,19 @@ __BEGIN_DECLS
 /* External bus */
 #define PX4_SPIDEV_EXT0		1
 #define PX4_SPIDEV_EXT1		2
+#define PX4_SPIDEV_EXT2		3
+#define PX4_SPIDEV_EXT3		4
+
+/* FMUv3 SPI on external bus */
+#define PX4_SPIDEV_EXT_MPU		PX4_SPIDEV_EXT0
+#define PX4_SPIDEV_EXT_BARO		PX4_SPIDEV_EXT1
+#define PX4_SPIDEV_EXT_ACCEL_MAG	PX4_SPIDEV_EXT2
+#define PX4_SPIDEV_EXT_GYRO		PX4_SPIDEV_EXT3
 
 /* I2C busses */
 #define PX4_I2C_BUS_EXPANSION	1
-#define PX4_I2C_BUS_LED		2
+#define PX4_I2C_BUS_ONBOARD	2
+#define PX4_I2C_BUS_LED		PX4_I2C_BUS_ONBOARD
 
 /* Devices on the onboard bus.
  *
@@ -217,6 +228,27 @@ __BEGIN_DECLS
  ****************************************************************************************************/
 
 extern void stm32_spiinitialize(void);
+
+extern void stm32_usbinitialize(void);
+
+/****************************************************************************
+ * Name: nsh_archinitialize
+ *
+ * Description:
+ *   Perform architecture specific initialization for NSH.
+ *
+ *   CONFIG_NSH_ARCHINIT=y :
+ *     Called from the NSH library
+ *
+ *   CONFIG_BOARD_INITIALIZE=y, CONFIG_NSH_LIBRARY=y, &&
+ *   CONFIG_NSH_ARCHINIT=n :
+ *     Called from board_initialize().
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NSH_LIBRARY
+int nsh_archinitialize(void);
+#endif
 
 #endif /* __ASSEMBLY__ */
 

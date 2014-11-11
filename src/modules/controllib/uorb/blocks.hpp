@@ -48,6 +48,7 @@
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/actuator_controls.h>
 #include <uORB/topics/parameter_update.h>
+#include <uORB/topics/battery_status.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,9 +103,11 @@ protected:
 	uORB::Subscription<manual_control_setpoint_s> _manual;
 	uORB::Subscription<vehicle_status_s> _status;
 	uORB::Subscription<parameter_update_s> _param_update;
+	uORB::Subscription<battery_status_s> _batt
 	// publications
 	uORB::Publication<actuator_controls_s> _actuators_0;
 	uORB::Publication<actuator_controls_s> _actuators_1;
+	uORB::Publication<parameter_update_s> _param_update_pub;
 public:
 	BlockUorbEnabledAutopilot(SuperBlock *parent, const char *name);
 	virtual ~BlockUorbEnabledAutopilot();

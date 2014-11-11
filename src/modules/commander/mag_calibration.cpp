@@ -145,7 +145,7 @@ int do_mag_calibration(int mavlink_fd)
 	}
 
 	if (res == OK) {
-		int sub_mag = orb_subscribe(ORB_ID(sensor_mag));
+		int sub_mag = orb_subscribe(ORB_ID(sensor_mag0));
 		struct mag_report mag;
 
 		/* limit update rate to get equally spaced measurements over time (in ms) */
@@ -155,7 +155,7 @@ int do_mag_calibration(int mavlink_fd)
 		uint64_t calibration_deadline = hrt_absolute_time() + calibration_interval;
 		unsigned poll_errcount = 0;
 
-		mavlink_log_info(mavlink_fd, "rotate in a figure 8 around all axis");
+		mavlink_log_info(mavlink_fd, "Turn on all sides: front/back,left/right,up/down");
 
 		calibration_counter = 0;
 
@@ -170,7 +170,7 @@ int do_mag_calibration(int mavlink_fd)
 			int poll_ret = poll(fds, 1, 1000);
 
 			if (poll_ret > 0) {
-				orb_copy(ORB_ID(sensor_mag), sub_mag, &mag);
+				orb_copy(ORB_ID(sensor_mag0), sub_mag, &mag);
 
 				x[calibration_counter] = mag.x;
 				y[calibration_counter] = mag.y;

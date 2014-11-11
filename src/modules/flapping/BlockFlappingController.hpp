@@ -81,4 +81,9 @@ private:
 	void flappingFunction(float t, float aileron,
 			float elevator, float throttle,
 			float & wingLeft, float & wingRight);
+	void learningFunction(); //TODO learning algorithm
+	// three parameters to vary for learning algorithm
+	param_t _dwn2up;
+	param_t _up2gld;
+	param_t _wng_up;
 };

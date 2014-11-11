@@ -161,3 +161,7 @@ void BlockFlappingController::flappingFunction(
 		wingRight = wingGlide - elevator + aileron;
 	}
 }
+
+//TODO
+void BlockFlappingController::learningFunction() {
+}
