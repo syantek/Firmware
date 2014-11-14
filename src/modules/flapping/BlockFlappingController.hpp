@@ -36,6 +36,11 @@
 #pragma once
 
 #include <controllib/uorb/blocks.hpp>
+#include <string>
+
+extern "C" {
+#include <Ev/EvStrat.h>
+}
 
 using namespace control;
 
@@ -82,6 +87,7 @@ private:
 			float elevator, float throttle,
 			float & wingLeft, float & wingRight);
 	void learningFunction(); //TODO learning algorithm
+	string etLearningParams(float num);
 	// three parameters to vary for learning algorithm
 	param_t _dwn2up;
 	param_t _up2gld;

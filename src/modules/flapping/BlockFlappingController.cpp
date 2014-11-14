@@ -68,7 +68,9 @@ void BlockFlappingController::update() {
 	float throttle = 0.0f;
 
 	// handle autopilot modes
-	if (_status.main_state == MAIN_STATE_AUTO)  {
+	if ((_status.main_state == MAIN_STATE_AUTO_MISSION) ||
+		(_status.main_state == MAIN_STATE_AUTO_RTL) ||
+		(_status.main_state == MAIN_STATE_AUTO_LOITER)) {
 		// TODO
 	} else if (_status.main_state == MAIN_STATE_MANUAL) {
 		elevator = _manual.x;
@@ -164,4 +166,55 @@ void BlockFlappingController::flappingFunction(
 
 //TODO
 void BlockFlappingController::learningFunction() {
+	/* Pseudocode
+	initialize parent, child, and new populations
+	initialize members of parent population randomly
+	for each generation:
+		copy parent into child pop
+		mutate child pop
+		for each child:
+			use child's params for a couple cycles
+			fitness = -energy used
+			record genome and fitness to file
+		apply selective pressure based on fitness to get new pop
+		new pop becomes parent pop
+	*/
+	
+	return;
+}
+
+
+string BlockFlappingController::getLearningParams(float num) {
+	int temp = num;
+	switch (temp) {
+		case 0:
+			return "TH2V_P";
+		case 1:
+			return "The2V_I";
+		case 2:
+			return "TH2V_I_MAX";
+		case 3:
+			return "Q2V";
+		case 4:
+			return "SRV_TRV";
+		case 5:
+			return "WNG_UP";
+		case 6:
+			return "WNG_DWN";
+		case 7:
+			return "WNG_GLD";
+		case 8:
+			return "T_DWN2UP";
+		case 9:
+			return "T_UP2GLD";
+		case 1:
+			return "THR_GLD";
+		case 1:
+			return "THR2FREQ";
+		case 1:
+			return "MIN_FREQ";
+		default:
+			return "ERROR: out of range";
+		}
+
 }
