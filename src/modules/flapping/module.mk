@@ -39,6 +39,6 @@ MODULE_COMMAND	= flapping
 
 SRCS		= flapping_main.cpp \
 		  BlockFlappingController.cpp \
-		  params.c #\
-#		  EvStrat.c \
-#		  rng.c
+		  params.c \
+		  EvStrat.c \
+		  rng.c

@@ -36,10 +36,10 @@
 #pragma once
 
 #include <controllib/uorb/blocks.hpp>
-/*#include <string>
-
+#include <string>
+/*
 extern "C" {
-#include <Ev/EvStrat.h>
+#include <EvStrat.h>
 }*/
 
 using namespace control;

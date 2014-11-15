@@ -90,14 +90,14 @@ void BlockFlappingController::update() {
 	//set the cycle frequency based on current throttle setting
 	float cycleFrequency = 0.2f;
 	cycleFrequencyFunction(throttle, cycleFrequency);
-	//printf("cycle frequency : %10.2f\n", cycleFrequency);
+	//printf("cycle frequency : %10.2f\n", (double)cycleFrequency);
 
 	// find cycle time
 	float t = (_timeStamp - _cycleStartTimeStamp)/ 1.0e6f;
 
 	// set cycle start timestamp, wrap time if new period
 	float cyclePeriod = 1.0f/cycleFrequency;
-	//printf("cycle period : %10.2f\n", cyclePeriod);
+	//printf("cycle period : %10.2f\n", (double)cyclePeriod);
 	if (t > cyclePeriod) {
 		t -= cyclePeriod*int(t/cyclePeriod);
 		_cycleStartTimeStamp = _timeStamp - t*1.0e6f;
@@ -118,7 +118,7 @@ void BlockFlappingController::update() {
 	_actuators_1.control[CH_LEFT] = wingLeft;
 	_actuators_1.control[CH_RIGHT] = wingRight;
 
-	//printf("left: %10.2f\tright: %10.2f\n", wingLeft, wingRight);
+	//printf("left: %10.2f\tright: %10.2f\n", (double)wingLeft, (double)wingRight);
 
 	// update all publications
 	updatePublications();
@@ -131,10 +131,10 @@ void BlockFlappingController::cycleFrequencyFunction(
 	float m = _throttle2Frequency.get();
 	float y = m*throttle + b;
 	cycleFrequency = y;
-	//printf("x : %10.2f\n", throttle);
-	//printf("m : %10.2f\n", m);
-	//printf("b : %10.2f\n", b);
-	//printf("cycle freq in func : %10.2f\n", y);
+	//printf("x : %10.2f\n", (double)throttle);
+	//printf("m : %10.2f\n", (double)m);
+	//printf("b : %10.2f\n", (double)b);
+	//printf("cycle freq in func : %10.2f\n", (double)y);
 }
 
 void BlockFlappingController::flappingFunction(
