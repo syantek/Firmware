@@ -183,7 +183,7 @@ void BlockFlappingController::learningFunction() {
 	return;
 }
 
-
+/*
 string BlockFlappingController::getLearningParams(float num) {
 	int temp = num;
 	switch (temp) {
@@ -214,7 +214,7 @@ string BlockFlappingController::getLearningParams(float num) {
 		case 1:
 			return "MIN_FREQ";
 		default:
-			return "ERROR: out of range";
+			return "ERROR";
 		}
 
-}
+}*/
