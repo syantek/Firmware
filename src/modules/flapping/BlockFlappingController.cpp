@@ -62,6 +62,11 @@ void BlockFlappingController::update() {
 		_actuators_1.control[i] = 0.0f;
 	}
 
+	float learning = _learning.get();
+	if (learning > 1.0f) {
+		//TODO learning stuff
+	}
+
 	// default controls
 	float elevator = 0.0f;
 	float aileron = 0.0f;

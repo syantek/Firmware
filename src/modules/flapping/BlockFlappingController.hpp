@@ -36,11 +36,11 @@
 #pragma once
 
 #include <controllib/uorb/blocks.hpp>
-//#include <string>
+/*#include <string>
 
 extern "C" {
 #include <Ev/EvStrat.h>
-}
+}*/
 
 using namespace control;
 
@@ -59,6 +59,10 @@ public:
 		_throttleGlide(this, "THR_GLD"),
 		_throttle2Frequency(this, "THR2FREQ"),
 		_minFrequency(this, "MIN_FREQ"),
+		_learning(this, "LRN"),
+		_learn_param1(this, "LRN1"),
+		_learn_param2(this, "LRN2"),
+		_learn_param3(this, "LRN3"),
 		_attPoll(),
 		_timeStamp(0)
 	{
@@ -79,6 +83,11 @@ private:
 	BlockParamFloat _throttleGlide;
 	BlockParamFloat _throttle2Frequency;
 	BlockParamFloat _minFrequency;
+	BlockParamFloat _learning;
+	BlockParamFloat _learn_param1;
+	BlockParamFloat _learn_param2;
+	BlockParamFloat _learn_param3;
+
 	struct pollfd _attPoll;
 	uint64_t _timeStamp;
 	uint64_t _cycleStartTimeStamp;

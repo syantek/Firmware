@@ -168,3 +168,15 @@ PARAM_DEFINE_FLOAT(FL_LRN2, 1.0f);
  * @group Flapping
  */
 PARAM_DEFINE_FLOAT(FL_LRN3, 2.0f);
+/**
+ *
+ * Learning
+ *
+ * If value is greater than 1.0f, then learning is on. Otherwise normal flight
+ *
+ *
+ * @min 0.0f
+ * @max 2.0f
+ * @group Flapping
+ */
+PARAM_DEFINE_FLOAT(FL_LRN, 0.0f);
