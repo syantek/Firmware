@@ -1,7 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2013 PX4 Development Team. All rights reserved.
- *   Author: Anton Babushkin <anton.babushkin@me.com>
+ *   Copyright (c) 2013 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -44,7 +43,9 @@
 #define ACCELEROMETER_CALIBRATION_H_
 
 #include <stdint.h>
+#include <uORB/uORB.h>
 
-int do_accel_calibration(int mavlink_fd);
+int do_accel_calibration(orb_advert_t *mavlink_log_pub);
+int do_level_calibration(orb_advert_t *mavlink_log_pub);
 
 #endif /* ACCELEROMETER_CALIBRATION_H_ */

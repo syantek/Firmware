@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2013 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2013, 2014 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,7 +38,7 @@
  * Driver for the Eagle Tree Airspeed V3 connected via I2C.
  */
 
-#include <nuttx/config.h>
+#include <px4_config.h>
 
 #include <drivers/device/i2c.h>
 
@@ -77,6 +77,7 @@
 
 /* I2C bus address */
 #define I2C_ADDRESS	0x75	/* 7-bit address. 8-bit address is 0xEA */
+#define ETS_PATH	"/dev/ets_airspeed"
 
 /* Register address */
 #define READ_CMD	0x07	/* Read the data */
@@ -93,7 +94,7 @@
 class ETSAirspeed : public Airspeed
 {
 public:
-	ETSAirspeed(int bus, int address = I2C_ADDRESS);
+	ETSAirspeed(int bus, int address = I2C_ADDRESS, const char *path = ETS_PATH);
 
 protected:
 
@@ -112,8 +113,8 @@ protected:
  */
 extern "C" __EXPORT int ets_airspeed_main(int argc, char *argv[]);
 
-ETSAirspeed::ETSAirspeed(int bus, int address) : Airspeed(bus, address,
-	CONVERSION_INTERVAL)
+ETSAirspeed::ETSAirspeed(int bus, int address, const char *path) : Airspeed(bus, address,
+			CONVERSION_INTERVAL, path)
 {
 
 }
@@ -131,7 +132,6 @@ ETSAirspeed::measure()
 
 	if (OK != ret) {
 		perf_count(_comms_errors);
-		log("i2c::transfer returned %d", ret);
 	}
 
 	return ret;
@@ -154,38 +154,40 @@ ETSAirspeed::collect()
 		return ret;
 	}
 
-	uint16_t diff_pres_pa = val[1] << 8 | val[0];
-        if (diff_pres_pa == 0) {
-		// a zero value means the pressure sensor cannot give us a
-		// value. We need to return, and not report a value or the
-		// caller could end up using this value as part of an
-		// average
-		perf_count(_comms_errors);
-		log("zero value from sensor"); 
-		return -1;
-        }
+	uint16_t diff_pres_pa_raw = val[1] << 8 | val[0];
 
-	if (diff_pres_pa < _diff_pres_offset + MIN_ACCURATE_DIFF_PRES_PA) {
-		diff_pres_pa = 0;
-	} else {
-		diff_pres_pa -= _diff_pres_offset;
-	}
-
-	// Track maximum differential pressure measured (so we can work out top speed).
-	if (diff_pres_pa > _max_differential_pressure_pa) {
-		_max_differential_pressure_pa = diff_pres_pa;
-	}
-
-	// XXX we may want to smooth out the readings to remove noise.
 	differential_pressure_s report;
 	report.timestamp = hrt_absolute_time();
-        report.error_count = perf_event_count(_comms_errors);
-	report.differential_pressure_pa = (float)diff_pres_pa;
-	report.voltage = 0;
+
+	if (diff_pres_pa_raw == 0) {
+		// a zero value indicates no measurement
+		// since the noise floor has been arbitrarily killed
+		// it defeats our stuck sensor detection - the best we
+		// can do is to output some numerical noise to show
+		// that we are still correctly sampling.
+		diff_pres_pa_raw = 0.001f * (report.timestamp & 0x01);
+	}
+
+	// The raw value still should be compensated for the known offset
+	diff_pres_pa_raw -= _diff_pres_offset;
+
+	// Track maximum differential pressure measured (so we can work out top speed).
+	if (diff_pres_pa_raw > _max_differential_pressure_pa) {
+		_max_differential_pressure_pa = diff_pres_pa_raw;
+	}
+
+	report.error_count = perf_event_count(_comms_errors);
+
+	// XXX we may want to smooth out the readings to remove noise.
+	report.differential_pressure_filtered_pa = diff_pres_pa_raw;
+	report.differential_pressure_raw_pa = diff_pres_pa_raw;
+	report.temperature = -1000.0f;
 	report.max_differential_pressure_pa = _max_differential_pressure_pa;
 
-	/* announce the airspeed if needed, just publish else */
-	orb_publish(ORB_ID(differential_pressure), _airspeed_pub, &report);
+	if (_airspeed_pub != nullptr && !(_pub_blocked)) {
+		/* publish it */
+		orb_publish(ORB_ID(differential_pressure), _airspeed_pub, &report);
+	}
 
 	new_report(report);
 
@@ -202,14 +204,19 @@ ETSAirspeed::collect()
 void
 ETSAirspeed::cycle()
 {
+	int ret;
+
 	/* collection phase? */
 	if (_collect_phase) {
 
 		/* perform collection */
-		if (OK != collect()) {
+		ret = collect();
+
+		if (OK != ret) {
 			perf_count(_comms_errors);
 			/* restart the measurement state machine */
 			start();
+			_sensor_ok = false;
 			return;
 		}
 
@@ -233,8 +240,13 @@ ETSAirspeed::cycle()
 	}
 
 	/* measurement phase */
-	if (OK != measure())
-		log("measure error");
+	ret = measure();
+
+	if (OK != ret) {
+		DEVICE_DEBUG("measure error");
+	}
+
+	_sensor_ok = (ret == OK);
 
 	/* next phase is collection */
 	_collect_phase = true;
@@ -253,12 +265,6 @@ ETSAirspeed::cycle()
 namespace ets_airspeed
 {
 
-/* oddly, ERROR is not defined for c++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-const int ERROR = -1;
-
 ETSAirspeed	*g_dev;
 
 void	start(int i2c_bus);
@@ -269,32 +275,40 @@ void	info();
 
 /**
  * Start the driver.
+ *
+ * This function only returns if the sensor is up and running
+ * or could not be detected successfully.
  */
 void
 start(int i2c_bus)
 {
 	int fd;
 
-	if (g_dev != nullptr)
+	if (g_dev != nullptr) {
 		errx(1, "already started");
+	}
 
 	/* create the driver */
 	g_dev = new ETSAirspeed(i2c_bus);
 
-	if (g_dev == nullptr)
+	if (g_dev == nullptr) {
 		goto fail;
+	}
 
-	if (OK != g_dev->Airspeed::init())
+	if (OK != g_dev->Airspeed::init()) {
 		goto fail;
+	}
 
 	/* set the poll rate to default, starts automatic data collection */
-	fd = open(AIRSPEED_DEVICE_PATH, O_RDONLY);
+	fd = open(AIRSPEED0_DEVICE_PATH, O_RDONLY);
 
-	if (fd < 0)
+	if (fd < 0) {
 		goto fail;
+	}
 
-	if (ioctl(fd, SENSORIOCSPOLLRATE, SENSOR_POLLRATE_DEFAULT) < 0)
+	if (ioctl(fd, SENSORIOCSPOLLRATE, SENSOR_POLLRATE_DEFAULT) < 0) {
 		goto fail;
+	}
 
 	exit(0);
 
@@ -305,7 +319,7 @@ fail:
 		g_dev = nullptr;
 	}
 
-	errx(1, "driver start failed");
+	errx(1, "no ETS airspeed sensor connected");
 }
 
 /**
@@ -337,23 +351,26 @@ test()
 	ssize_t sz;
 	int ret;
 
-	int fd = open(AIRSPEED_DEVICE_PATH, O_RDONLY);
+	int fd = open(ETS_PATH, O_RDONLY);
 
-	if (fd < 0)
-		err(1, "%s open failed (try 'ets_airspeed start' if the driver is not running", AIRSPEED_DEVICE_PATH);
+	if (fd < 0) {
+		err(1, "%s open failed (try 'ets_airspeed start' if the driver is not running", ETS_PATH);
+	}
 
 	/* do a simple demand read */
 	sz = read(fd, &report, sizeof(report));
 
-	if (sz != sizeof(report))
+	if (sz != sizeof(report)) {
 		err(1, "immediate read failed");
+	}
 
 	warnx("single read");
-	warnx("diff pressure: %d pa", report.differential_pressure_pa);
+	warnx("diff pressure: %f pa", (double)report.differential_pressure_filtered_pa);
 
 	/* start the sensor polling at 2Hz */
-	if (OK != ioctl(fd, SENSORIOCSPOLLRATE, 2))
+	if (OK != ioctl(fd, SENSORIOCSPOLLRATE, 2)) {
 		errx(1, "failed to set 2Hz poll rate");
+	}
 
 	/* read the sensor 5x and report each value */
 	for (unsigned i = 0; i < 5; i++) {
@@ -364,22 +381,25 @@ test()
 		fds.events = POLLIN;
 		ret = poll(&fds, 1, 2000);
 
-		if (ret != 1)
+		if (ret != 1) {
 			errx(1, "timed out waiting for sensor data");
+		}
 
 		/* now go get it */
 		sz = read(fd, &report, sizeof(report));
 
-		if (sz != sizeof(report))
+		if (sz != sizeof(report)) {
 			err(1, "periodic read failed");
+		}
 
 		warnx("periodic read %u", i);
-		warnx("diff pressure: %d pa", report.differential_pressure_pa);
+		warnx("diff pressure: %f pa", (double)report.differential_pressure_filtered_pa);
 	}
 
 	/* reset the sensor polling to its default rate */
-	if (OK != ioctl(fd, SENSORIOCSPOLLRATE, SENSOR_POLLRATE_DEFAULT))
+	if (OK != ioctl(fd, SENSORIOCSPOLLRATE, SENSOR_POLLRATE_DEFAULT)) {
 		errx(1, "failed to set default rate");
+	}
 
 	errx(0, "PASS");
 }
@@ -390,16 +410,19 @@ test()
 void
 reset()
 {
-	int fd = open(AIRSPEED_DEVICE_PATH, O_RDONLY);
+	int fd = open(ETS_PATH, O_RDONLY);
 
-	if (fd < 0)
+	if (fd < 0) {
 		err(1, "failed ");
+	}
 
-	if (ioctl(fd, SENSORIOCRESET, 0) < 0)
+	if (ioctl(fd, SENSORIOCRESET, 0) < 0) {
 		err(1, "driver reset failed");
+	}
 
-	if (ioctl(fd, SENSORIOCSPOLLRATE, SENSOR_POLLRATE_DEFAULT) < 0)
+	if (ioctl(fd, SENSORIOCSPOLLRATE, SENSOR_POLLRATE_DEFAULT) < 0) {
 		err(1, "driver poll restart failed");
+	}
 
 	exit(0);
 }
@@ -410,8 +433,9 @@ reset()
 void
 info()
 {
-	if (g_dev == nullptr)
+	if (g_dev == nullptr) {
 		errx(1, "driver not running");
+	}
 
 	printf("state @ %p\n", g_dev);
 	g_dev->print_info();
@@ -450,32 +474,37 @@ ets_airspeed_main(int argc, char *argv[])
 	/*
 	 * Start/load the driver.
 	 */
-	if (!strcmp(argv[1], "start"))
+	if (!strcmp(argv[1], "start")) {
 		ets_airspeed::start(i2c_bus);
+	}
 
 	/*
 	 * Stop the driver
 	 */
-	if (!strcmp(argv[1], "stop"))
+	if (!strcmp(argv[1], "stop")) {
 		ets_airspeed::stop();
+	}
 
 	/*
 	 * Test the driver/device.
 	 */
-	if (!strcmp(argv[1], "test"))
+	if (!strcmp(argv[1], "test")) {
 		ets_airspeed::test();
+	}
 
 	/*
 	 * Reset the driver.
 	 */
-	if (!strcmp(argv[1], "reset"))
+	if (!strcmp(argv[1], "reset")) {
 		ets_airspeed::reset();
+	}
 
 	/*
 	 * Print driver information.
 	 */
-	if (!strcmp(argv[1], "info") || !strcmp(argv[1], "status"))
+	if (!strcmp(argv[1], "info") || !strcmp(argv[1], "status")) {
 		ets_airspeed::info();
+	}
 
 	ets_airspeed_usage();
 	exit(0);

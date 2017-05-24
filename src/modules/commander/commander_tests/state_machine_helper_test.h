@@ -36,9 +36,7 @@
  * @file state_machine_helper_test.h
  */
 
-#ifndef STATE_MACHINE_HELPER_TEST_H_
-#define STATE_MACHINE_HELPER_TEST_
+#pragma once
 
-void state_machine_helper_test();
+bool stateMachineHelperTest(void);
 
-#endif /* STATE_MACHINE_HELPER_TEST_H_ */

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2012 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2012-2014 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -55,12 +55,31 @@
  * Input data may be obtained by subscribing to the input_rc
  * object, or by poll/reading from the device.
  */
-#define RC_INPUT_DEVICE_PATH	"/dev/input_rc"
+#define RC_INPUT0_DEVICE_PATH	"/dev/input_rc0"
 
 /**
- * Maximum number of R/C input channels in the system. S.Bus has up to 18 channels.
+ * Maximum RSSI value
  */
-#define RC_INPUT_MAX_CHANNELS	18
+#define RC_INPUT_RSSI_MAX	100
+
+/**
+ * Minimum value
+ */
+#define RC_INPUT_LOWEST_MIN_US	500
+
+/**
+ * Maximum value
+ */
+#define RC_INPUT_HIGHEST_MAX_US	2500
+
+/**
+ * Maximum deadzone value
+ */
+#define RC_INPUT_MAX_DEADZONE_US	500
+
+#include <uORB/topics/input_rc.h>
+#define pwm_output_values output_pwm_s
+#define rc_input_values input_rc_s
 
 /**
  * Input signal type, value is a control position from zero to 100
@@ -68,44 +87,15 @@
  */
 typedef uint16_t		rc_input_t;
 
-enum RC_INPUT_SOURCE {
-	RC_INPUT_SOURCE_UNKNOWN = 0,
-	RC_INPUT_SOURCE_PX4FMU_PPM,
-	RC_INPUT_SOURCE_PX4IO_PPM,
-	RC_INPUT_SOURCE_PX4IO_SPEKTRUM,
-	RC_INPUT_SOURCE_PX4IO_SBUS
-};
-
-/**
- * R/C input status structure.
- *
- * Published to input_rc, may also be published to other names depending
- * on the board involved.
- */
-struct rc_input_values {
-	/** decoding time */
-	uint64_t		timestamp;
-
-	/** number of channels actually being seen */
-	uint32_t		channel_count;
-
-	/** Input source */
-	enum RC_INPUT_SOURCE 	input_source;
-
-	/** measured pulse widths for each of the supported channels */
-	rc_input_t		values[RC_INPUT_MAX_CHANNELS];
-};
-
-/*
- * ObjDev tag for R/C inputs.
- */
-ORB_DECLARE(input_rc);
-
 #define _RC_INPUT_BASE		0x2b00
 
 /** Fetch R/C input values into (rc_input_values *)arg */
-
 #define RC_INPUT_GET			_IOC(_RC_INPUT_BASE, 0)
 
+/** Enable RSSI input via ADC */
+#define RC_INPUT_ENABLE_RSSI_ANALOG	_IOC(_RC_INPUT_BASE, 1)
+
+/** Enable RSSI input via PWM signal */
+#define RC_INPUT_ENABLE_RSSI_PWM	_IOC(_RC_INPUT_BASE, 2)
 
 #endif /* _DRV_RC_INPUT_H */

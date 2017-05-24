@@ -1,7 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2012 PX4 Development Team. All rights reserved.
- *   Author: Lorenz Meier <lm@inf.ethz.ch>
+ *   Copyright (c) 2012-2015 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,71 +33,76 @@
 
 /**
  * @file mavlink_parameters.h
- * MAVLink parameter protocol definitions (BSD-relicensed).
+ * Mavlink parameters manager definition.
  *
- * @author Lorenz Meier <lm@inf.ethz.ch>
+ * @author Anton Babushkin <anton.babushkin@me.com>
+ * @author Lorenz Meier <lorenz@px4.io>
  */
 
-/* This assumes you have the mavlink headers on your include path
- or in the same folder as this source file */
+#pragma once
 
-
-#include <v1.0/mavlink_types.h>
-#include <stdbool.h>
 #include <systemlib/param/param.h>
 
-/**
- * Handle parameter related messages.
- */
-void mavlink_pm_message_handler(const mavlink_channel_t chan, const mavlink_message_t *msg);
+#include "mavlink_bridge_header.h"
+#include <uORB/uORB.h>
+#include <uORB/topics/rc_parameter_map.h>
+#include <uORB/topics/uavcan_parameter_request.h>
+#include <drivers/drv_hrt.h>
 
-/**
- * Send all parameters at once.
- *
- * This function blocks until all parameters have been sent.
- * it delays each parameter by the passed amount of microseconds.
- *
- * @param delay		The delay in us between sending all parameters.
- */
-void mavlink_pm_send_all_params(unsigned int delay);
+class Mavlink;
 
-/**
- * Send one parameter.
- *
- * @param param		The parameter id to send.
- * @return		zero on success, nonzero on failure.
- */
-int mavlink_pm_send_param(param_t param);
+class MavlinkParametersManager
+{
+public:
+	explicit MavlinkParametersManager(Mavlink *mavlink);
+	~MavlinkParametersManager();
 
-/**
- * Send one parameter identified by index.
- *
- * @param index		The index of the parameter to send.
- * @return		zero on success, nonzero else.
- */
-int mavlink_pm_send_param_for_index(uint16_t index);
+	/**
+	 * Handle sending of messages. Call this regularly at a fixed frequency.
+	 * @param t current time
+	 */
+	void send(const hrt_abstime t);
 
-/**
- * Send one parameter identified by name.
- *
- * @param name		The index of the parameter to send.
- * @return		zero on success, nonzero else.
- */
-int mavlink_pm_send_param_for_name(const char *name);
+	unsigned get_size();
 
-/**
- * Send a queue of parameters, one parameter per function call.
- *
- * @return		zero on success, nonzero on failure
- */
-int mavlink_pm_queued_send(void);
+	void handle_message(const mavlink_message_t *msg);
 
-/**
- * Start sending the parameter queue.
- *
- * This function will not directly send parameters, but instead
- * activate the sending of one parameter on each call of
- * mavlink_pm_queued_send().
- * @see 		mavlink_pm_queued_send()
- */
-void mavlink_pm_start_queued_send(void);
+private:
+	int		_send_all_index;
+
+	/* do not allow top copying this class */
+	MavlinkParametersManager(MavlinkParametersManager &);
+	MavlinkParametersManager &operator = (const MavlinkParametersManager &);
+
+protected:
+	/// send a single param if a PARAM_REQUEST_LIST is in progress
+	/// @return true if a parameter was sent
+	bool send_one();
+
+	int send_param(param_t param, int component_id = -1);
+
+	// Item of a single-linked list to store requested uavcan parameters
+	struct _uavcan_open_request_list_item {
+		uavcan_parameter_request_s req;
+		struct _uavcan_open_request_list_item *next;
+	};
+
+	// Request the next uavcan parameter
+	void request_next_uavcan_parameter();
+	// Enque one uavcan parameter reqest. We store 10 at max.
+	void enque_uavcan_request(uavcan_parameter_request_s *req);
+	// Drop the first reqest from the list
+	void dequeue_uavcan_request();
+
+	_uavcan_open_request_list_item *_uavcan_open_request_list; // Pointer to the first item in the linked list
+	bool _uavcan_waiting_for_request_response; // We have reqested a parameter and wait for the response
+	uint16_t _uavcan_queued_request_items;	// Number of stored parameter requests currently in the list
+
+	orb_advert_t _rc_param_map_pub;
+	struct rc_parameter_map_s _rc_param_map;
+
+	orb_advert_t _uavcan_parameter_request_pub;
+	int _uavcan_parameter_value_sub;
+
+	Mavlink *_mavlink;
+};

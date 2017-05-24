@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2013 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2013 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -40,7 +40,8 @@
 #define BARO_CALIBRATION_H_
 
 #include <stdint.h>
+#include <uORB/uORB.h>
 
-int do_baro_calibration(int mavlink_fd);
+int do_baro_calibration(orb_advert_t *mavlink_log_pub);
 
 #endif /* BARO_CALIBRATION_H_ */

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2013 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2013, 2014 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,7 +38,8 @@
  * Generic driver for airspeed sensors connected via I2C.
  */
 
-#include <nuttx/config.h>
+#include <px4_config.h>
+#include <px4_defines.h>
 
 #include <drivers/device/i2c.h>
 
@@ -55,9 +56,14 @@
 #include <math.h>
 #include <unistd.h>
 
+#ifdef __PX4_NUTTX
 #include <nuttx/arch.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/clock.h>
+#
+#else
+#include <px4_workqueue.h>
+#endif
 
 #include <arch/board/board.h>
 
@@ -77,12 +83,6 @@
 /* Default I2C bus */
 #define PX4_I2C_BUS_DEFAULT		PX4_I2C_BUS_EXPANSION
 
-/* Oddly, ERROR is not defined for C++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-static const int ERROR = -1;
-
 #ifndef CONFIG_SCHED_WORKQUEUE
 # error This requires CONFIG_SCHED_WORKQUEUE.
 #endif
@@ -90,13 +90,13 @@ static const int ERROR = -1;
 class __EXPORT Airspeed : public device::I2C
 {
 public:
-	Airspeed(int bus, int address, unsigned conversion_interval);
+	Airspeed(int bus, int address, unsigned conversion_interval, const char *path);
 	virtual ~Airspeed();
 
 	virtual int	init();
 
-	virtual ssize_t	read(struct file *filp, char *buffer, size_t buflen);
-	virtual int	ioctl(struct file *filp, int cmd, unsigned long arg);
+	virtual ssize_t	read(device::file_t *filp, char *buffer, size_t buflen);
+	virtual int	ioctl(device::file_t *filp, int cmd, unsigned long arg);
 
 	/**
 	 * Diagnostics - print some basic information about the driver.
@@ -104,8 +104,11 @@ public:
 	virtual void	print_info();
 
 private:
-	RingBuffer		*_reports;
-	perf_counter_t		_buffer_overflows;
+	ringbuffer::RingBuffer		*_reports;
+
+	/* this class has pointer data members and should not be copied */
+	Airspeed(const Airspeed &);
+	Airspeed &operator=(const Airspeed &);
 
 protected:
 	virtual int	probe();
@@ -118,14 +121,23 @@ protected:
 	virtual int	measure() = 0;
 	virtual int	collect() = 0;
 
+	/**
+	 * Update the subsystem status
+	 */
+	void update_status();
+
 	work_s			_work;
-	float		_max_differential_pressure_pa;
+	float			_max_differential_pressure_pa;
 	bool			_sensor_ok;
+	bool			_last_published_sensor_ok;
 	int			_measure_ticks;
 	bool			_collect_phase;
 	float			_diff_pres_offset;
 
 	orb_advert_t		_airspeed_pub;
+	orb_advert_t		_subsys_pub;
+
+	int			_class_instance;
 
 	unsigned		_conversion_interval;
 

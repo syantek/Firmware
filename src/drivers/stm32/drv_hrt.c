@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2012 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2012, 2013 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -45,7 +45,7 @@
  * claim the timer and then drive it directly.
  */
 
-#include <nuttx/config.h>
+#include <px4_config.h>
 #include <nuttx/arch.h>
 #include <nuttx/irq.h>
 
@@ -62,13 +62,15 @@
 #include <board_config.h>
 #include <drivers/drv_hrt.h>
 
-#include "chip.h"
-#include "up_internal.h"
-#include "up_arch.h"
 
-#include "stm32.h"
 #include "stm32_gpio.h"
 #include "stm32_tim.h"
+
+#ifdef CONFIG_DEBUG_HRT
+#  define hrtinfo _info
+#else
+#  define hrtinfo(x...)
+#endif
 
 #ifdef HRT_TIMER
 
@@ -85,7 +87,7 @@
 #elif HRT_TIMER == 2
 # define HRT_TIMER_BASE		STM32_TIM2_BASE
 # define HRT_TIMER_POWER_REG	STM32_RCC_APB1ENR
-# define HRT_TIMER_POWER_BIT	RCC_APB2ENR_TIM2EN
+# define HRT_TIMER_POWER_BIT	RCC_APB1ENR_TIM2EN
 # define HRT_TIMER_VECTOR	STM32_IRQ_TIM2
 # define HRT_TIMER_CLOCK	STM32_APB1_TIM2_CLKIN
 # if CONFIG_STM32_TIM2
@@ -94,7 +96,7 @@
 #elif HRT_TIMER == 3
 # define HRT_TIMER_BASE		STM32_TIM3_BASE
 # define HRT_TIMER_POWER_REG	STM32_RCC_APB1ENR
-# define HRT_TIMER_POWER_BIT	RCC_APB2ENR_TIM3EN
+# define HRT_TIMER_POWER_BIT	RCC_APB1ENR_TIM3EN
 # define HRT_TIMER_VECTOR	STM32_IRQ_TIM3
 # define HRT_TIMER_CLOCK	STM32_APB1_TIM3_CLKIN
 # if CONFIG_STM32_TIM3
@@ -103,7 +105,7 @@
 #elif HRT_TIMER == 4
 # define HRT_TIMER_BASE		STM32_TIM4_BASE
 # define HRT_TIMER_POWER_REG	STM32_RCC_APB1ENR
-# define HRT_TIMER_POWER_BIT	RCC_APB2ENR_TIM4EN
+# define HRT_TIMER_POWER_BIT	RCC_APB1ENR_TIM4EN
 # define HRT_TIMER_VECTOR	STM32_IRQ_TIM4
 # define HRT_TIMER_CLOCK	STM32_APB1_TIM4_CLKIN
 # if CONFIG_STM32_TIM4
@@ -112,7 +114,7 @@
 #elif HRT_TIMER == 5
 # define HRT_TIMER_BASE		STM32_TIM5_BASE
 # define HRT_TIMER_POWER_REG	STM32_RCC_APB1ENR
-# define HRT_TIMER_POWER_BIT	RCC_APB2ENR_TIM5EN
+# define HRT_TIMER_POWER_BIT	RCC_APB1ENR_TIM5EN
 # define HRT_TIMER_VECTOR	STM32_IRQ_TIM5
 # define HRT_TIMER_CLOCK	STM32_APB1_TIM5_CLKIN
 # if CONFIG_STM32_TIM5
@@ -129,28 +131,28 @@
 # endif
 #elif HRT_TIMER == 9
 # define HRT_TIMER_BASE		STM32_TIM9_BASE
-# define HRT_TIMER_POWER_REG	STM32_RCC_APB1ENR
+# define HRT_TIMER_POWER_REG	STM32_RCC_APB2ENR
 # define HRT_TIMER_POWER_BIT	RCC_APB2ENR_TIM9EN
 # define HRT_TIMER_VECTOR	STM32_IRQ_TIM1BRK
-# define HRT_TIMER_CLOCK	STM32_APB1_TIM9_CLKIN
+# define HRT_TIMER_CLOCK	STM32_APB2_TIM9_CLKIN
 # if CONFIG_STM32_TIM9
 #  error must not set CONFIG_STM32_TIM9=y and HRT_TIMER=9
 # endif
 #elif HRT_TIMER == 10
 # define HRT_TIMER_BASE		STM32_TIM10_BASE
-# define HRT_TIMER_POWER_REG	STM32_RCC_APB1ENR
+# define HRT_TIMER_POWER_REG	STM32_RCC_APB2ENR
 # define HRT_TIMER_POWER_BIT	RCC_APB2ENR_TIM10EN
 # define HRT_TIMER_VECTOR	STM32_IRQ_TIM1UP
-# define HRT_TIMER_CLOCK	STM32_APB1_TIM10_CLKIN
+# define HRT_TIMER_CLOCK	STM32_APB2_TIM10_CLKIN
 # if CONFIG_STM32_TIM10
 #  error must not set CONFIG_STM32_TIM11=y and HRT_TIMER=10
 # endif
 #elif HRT_TIMER == 11
 # define HRT_TIMER_BASE		STM32_TIM11_BASE
-# define HRT_TIMER_POWER_REG	STM32_RCC_APB1ENR
+# define HRT_TIMER_POWER_REG	STM32_RCC_APB2ENR
 # define HRT_TIMER_POWER_BIT	RCC_APB2ENR_TIM11EN
 # define HRT_TIMER_VECTOR	STM32_IRQ_TIM1TRGCOM
-# define HRT_TIMER_CLOCK	STM32_APB1_TIM11_CLKIN
+# define HRT_TIMER_CLOCK	STM32_APB2_TIM11_CLKIN
 # if CONFIG_STM32_TIM11
 #  error must not set CONFIG_STM32_TIM11=y and HRT_TIMER=11
 # endif
@@ -168,7 +170,7 @@
 # error HRT_TIMER_CLOCK must be greater than 1MHz
 #endif
 
-/*
+/**
  * Minimum/maximum deadlines.
  *
  * These are suitable for use with a 16-bit timer/counter clocked
@@ -221,6 +223,7 @@
 /*
  * Specific registers and bits used by HRT sub-functions
  */
+/* FIXME! There is an interaction in the CCMR registers that prevents using Chan 1 as the timer and chan 2 as the PPM*/
 #if HRT_TIMER_CHANNEL == 1
 # define rCCR_HRT	rCCR1			/* compare register for HRT */
 # define DIER_HRT	GTIM_DIER_CC1IE		/* interrupt enable for HRT */
@@ -253,9 +256,11 @@ static uint16_t			latency_baseline;
 static uint16_t			latency_actual;
 
 /* latency histogram */
-#define LATENCY_BUCKET_COUNT	8
-static const uint16_t		latency_buckets[LATENCY_BUCKET_COUNT] = { 1, 2, 5, 10, 20, 50, 100, 1000 };
-static uint32_t			latency_counters[LATENCY_BUCKET_COUNT + 1];
+#define LATENCY_BUCKET_COUNT 8
+__EXPORT const uint16_t latency_bucket_count = LATENCY_BUCKET_COUNT;
+__EXPORT const uint16_t	latency_buckets[LATENCY_BUCKET_COUNT] = { 1, 2, 5, 10, 20, 50, 100, 1000 };
+__EXPORT uint32_t		latency_counters[LATENCY_BUCKET_COUNT + 1];
+
 
 /* timer-specific functions */
 static void		hrt_tim_init(void);
@@ -276,19 +281,23 @@ static void		hrt_call_invoke(void);
  * Specific registers and bits used by PPM sub-functions
  */
 #ifdef HRT_PPM_CHANNEL
-/* 
+/*
  * If the timer hardware doesn't support GTIM_CCER_CCxNP, then we will work around it.
  *
  * Note that we assume that M3 means STM32F1 (since we don't really care about the F2).
  */
 # ifdef CONFIG_ARCH_CORTEXM3
+#  undef GTIM_CCER_CC1NP
+#  undef GTIM_CCER_CC2NP
+#  undef GTIM_CCER_CC3NP
+#  undef GTIM_CCER_CC4NP
 #  define GTIM_CCER_CC1NP 0
 #  define GTIM_CCER_CC2NP 0
 #  define GTIM_CCER_CC3NP 0
 #  define GTIM_CCER_CC4NP 0
 #  define PPM_EDGE_FLIP
 # endif
-
+/* FIXME! There is an interaction in the CCMR registers that prevents using Chan 1 as the timer and chan 2 as the PPM*/
 # if HRT_PPM_CHANNEL == 1
 #  define rCCR_PPM	rCCR1			/* capture register for PPM */
 #  define DIER_PPM	GTIM_DIER_CC1IE		/* capture interrupt (non-DMA mode) */
@@ -332,17 +341,27 @@ static void		hrt_call_invoke(void);
 /*
  * PPM decoder tuning parameters
  */
-# define PPM_MAX_PULSE_WIDTH	550		/* maximum width of a valid pulse */
-# define PPM_MIN_CHANNEL_VALUE	800		/* shortest valid channel signal */
-# define PPM_MAX_CHANNEL_VALUE	2200		/* longest valid channel signal */
-# define PPM_MIN_START		2500		/* shortest valid start gap */
+# define PPM_MIN_PULSE_WIDTH	200		/**< minimum width of a valid first pulse */
+# define PPM_MAX_PULSE_WIDTH	600		/**< maximum width of a valid first pulse */
+# define PPM_MIN_CHANNEL_VALUE	800		/**< shortest valid channel signal */
+# define PPM_MAX_CHANNEL_VALUE	2200		/**< longest valid channel signal */
+# define PPM_MIN_START		2300		/**< shortest valid start gap (only 2nd part of pulse) */
 
 /* decoded PPM buffer */
-#define PPM_MAX_CHANNELS	12
+#define PPM_MIN_CHANNELS	5
+#define PPM_MAX_CHANNELS	20
+
+/** Number of same-sized frames required to 'lock' */
+#define PPM_CHANNEL_LOCK	4		/**< should be less than the input timeout */
+
 __EXPORT uint16_t ppm_buffer[PPM_MAX_CHANNELS];
+__EXPORT uint16_t ppm_frame_length = 0;
 __EXPORT unsigned ppm_decoded_channels = 0;
 __EXPORT uint64_t ppm_last_valid_decode = 0;
 
+#define PPM_DEBUG 0
+
+#if PPM_DEBUG
 /* PPM edge history */
 __EXPORT uint16_t ppm_edge_history[32];
 unsigned ppm_edge_next;
@@ -350,14 +369,16 @@ unsigned ppm_edge_next;
 /* PPM pulse history */
 __EXPORT uint16_t ppm_pulse_history[32];
 unsigned ppm_pulse_next;
+#endif
 
 static uint16_t ppm_temp_buffer[PPM_MAX_CHANNELS];
 
-/* PPM decoder state machine */
+/** PPM decoder state machine */
 struct {
-	uint16_t	last_edge;	/* last capture time */
-	uint16_t	last_mark;	/* last significant edge */
-	unsigned	next_channel;
+	uint16_t	last_edge;	/**< last capture time */
+	uint16_t	last_mark;	/**< last significant edge */
+	uint16_t	frame_start;	/**< the frame width */
+	unsigned	next_channel;	/**< next channel index */
 	enum {
 		UNSYNCH = 0,
 		ARM,
@@ -379,7 +400,7 @@ static void	hrt_ppm_decode(uint32_t status);
 # define CCER_PPM	0
 #endif /* HRT_PPM_CHANNEL */
 
-/*
+/**
  * Initialise the timer we are going to use.
  *
  * We expect that we'll own one of the reduced-function STM32 general
@@ -425,7 +446,7 @@ hrt_tim_init(void)
 }
 
 #ifdef HRT_PPM_CHANNEL
-/*
+/**
  * Handle the PPM decoder state machine.
  */
 static void
@@ -437,17 +458,21 @@ hrt_ppm_decode(uint32_t status)
 	unsigned i;
 
 	/* if we missed an edge, we have to give up */
-	if (status & SR_OVF_PPM)
+	if (status & SR_OVF_PPM) {
 		goto error;
+	}
 
-	/* how long since the last edge? */
+	/* how long since the last edge? - this handles counter wrapping implicitly. */
 	width = count - ppm.last_edge;
-	ppm.last_edge = count;
 
+#if PPM_DEBUG
 	ppm_edge_history[ppm_edge_next++] = width;
 
-	if (ppm_edge_next >= 32)
+	if (ppm_edge_next >= 32) {
 		ppm_edge_next = 0;
+	}
+
+#endif
 
 	/*
 	 * if this looks like a start pulse, then push the last set of values
@@ -455,14 +480,40 @@ hrt_ppm_decode(uint32_t status)
 	 */
 	if (width >= PPM_MIN_START) {
 
-		/* export the last set of samples if we got something sensible */
-		if (ppm.next_channel > 4) {
-			for (i = 0; i < ppm.next_channel && i < PPM_MAX_CHANNELS; i++)
-				ppm_buffer[i] = ppm_temp_buffer[i];
+		/*
+		 * If the number of channels changes unexpectedly, we don't want
+		 * to just immediately jump on the new count as it may be a result
+		 * of noise or dropped edges.  Instead, take a few frames to settle.
+		 */
+		if (ppm.next_channel != ppm_decoded_channels) {
+			static unsigned new_channel_count;
+			static unsigned new_channel_holdoff;
 
-			ppm_decoded_channels = i;
-			ppm_last_valid_decode = hrt_absolute_time();
+			if (new_channel_count != ppm.next_channel) {
+				/* start the lock counter for the new channel count */
+				new_channel_count = ppm.next_channel;
+				new_channel_holdoff = PPM_CHANNEL_LOCK;
 
+			} else if (new_channel_holdoff > 0) {
+				/* this frame matched the last one, decrement the lock counter */
+				new_channel_holdoff--;
+
+			} else {
+				/* we have seen PPM_CHANNEL_LOCK frames with the new count, accept it */
+				ppm_decoded_channels = new_channel_count;
+				new_channel_count = 0;
+			}
+
+		} else {
+			/* frame channel count matches expected, let's use it */
+			if (ppm.next_channel >= PPM_MIN_CHANNELS) {
+				for (i = 0; i < ppm.next_channel; i++) {
+					ppm_buffer[i] = ppm_temp_buffer[i];
+				}
+
+				ppm_last_valid_decode = hrt_absolute_time();
+
+			}
 		}
 
 		/* reset for the next frame */
@@ -471,52 +522,73 @@ hrt_ppm_decode(uint32_t status)
 		/* next edge is the reference for the first channel */
 		ppm.phase = ARM;
 
+		ppm.last_edge = count;
 		return;
 	}
 
 	switch (ppm.phase) {
 	case UNSYNCH:
 		/* we are waiting for a start pulse - nothing useful to do here */
-		return;
+		break;
 
 	case ARM:
 
 		/* we expect a pulse giving us the first mark */
-		if (width > PPM_MAX_PULSE_WIDTH)
-			goto error;		/* pulse was too long */
+		if (width < PPM_MIN_PULSE_WIDTH || width > PPM_MAX_PULSE_WIDTH) {
+			goto error;        /* pulse was too short or too long */
+		}
 
 		/* record the mark timing, expect an inactive edge */
-		ppm.last_mark = count;
-		ppm.phase = INACTIVE;
-		return;
+		ppm.last_mark = ppm.last_edge;
+
+		/* frame length is everything including the start gap */
+		ppm_frame_length = (uint16_t)(ppm.last_edge - ppm.frame_start);
+		ppm.frame_start = ppm.last_edge;
+		ppm.phase = ACTIVE;
+		break;
 
 	case INACTIVE:
+
+		/* we expect a short pulse */
+		if (width < PPM_MIN_PULSE_WIDTH || width > PPM_MAX_PULSE_WIDTH) {
+			goto error;        /* pulse was too short or too long */
+		}
+
 		/* this edge is not interesting, but now we are ready for the next mark */
 		ppm.phase = ACTIVE;
-		return;
+		break;
 
 	case ACTIVE:
 		/* determine the interval from the last mark */
 		interval = count - ppm.last_mark;
 		ppm.last_mark = count;
 
+#if PPM_DEBUG
 		ppm_pulse_history[ppm_pulse_next++] = interval;
 
-		if (ppm_pulse_next >= 32)
+		if (ppm_pulse_next >= 32) {
 			ppm_pulse_next = 0;
+		}
+
+#endif
 
 		/* if the mark-mark timing is out of bounds, abandon the frame */
-		if ((interval < PPM_MIN_CHANNEL_VALUE) || (interval > PPM_MAX_CHANNEL_VALUE))
+		if ((interval < PPM_MIN_CHANNEL_VALUE) || (interval > PPM_MAX_CHANNEL_VALUE)) {
 			goto error;
+		}
 
 		/* if we have room to store the value, do so */
-		if (ppm.next_channel < PPM_MAX_CHANNELS)
+		if (ppm.next_channel < PPM_MAX_CHANNELS) {
 			ppm_temp_buffer[ppm.next_channel++] = interval;
+		}
 
 		ppm.phase = INACTIVE;
-		return;
+		break;
 
 	}
+
+	ppm.last_edge = count;
+	return;
 
 	/* the state machine is corrupted; reset it */
 
@@ -528,8 +600,8 @@ error:
 }
 #endif /* HRT_PPM_CHANNEL */
 
-/*
- * Handle the compare interupt by calling the callout dispatcher
+/**
+ * Handle the compare interrupt by calling the callout dispatcher
  * and then re-scheduling the next deadline.
  */
 static int
@@ -557,6 +629,7 @@ hrt_tim_isr(int irq, void *context)
 
 		hrt_ppm_decode(status);
 	}
+
 #endif
 
 	/* was this a timer tick? */
@@ -575,7 +648,7 @@ hrt_tim_isr(int irq, void *context)
 	return OK;
 }
 
-/*
+/**
  * Fetch a never-wrapping absolute time value in microseconds from
  * some arbitrary epoch shortly after system start.
  */
@@ -596,7 +669,7 @@ hrt_absolute_time(void)
 	static volatile uint32_t last_count;
 
 	/* prevent re-entry */
-	flags = irqsave();
+	flags = px4_enter_critical_section();
 
 	/* get the current counter value */
 	count = rCNT;
@@ -608,8 +681,9 @@ hrt_absolute_time(void)
 	 * This simple test is sufficient due to the guarantee that
 	 * we are always called at least once per counter period.
 	 */
-	if (count < last_count)
+	if (count < last_count) {
 		base_time += HRT_COUNTER_PERIOD;
+	}
 
 	/* save the count for next time */
 	last_count = count;
@@ -617,12 +691,12 @@ hrt_absolute_time(void)
 	/* compute the current time */
 	abstime = HRT_COUNTER_SCALE(base_time + count);
 
-	irqrestore(flags);
+	px4_leave_critical_section(flags);
 
 	return abstime;
 }
 
-/*
+/**
  * Convert a timespec to absolute time
  */
 hrt_abstime
@@ -636,7 +710,7 @@ ts_to_abstime(struct timespec *ts)
 	return result;
 }
 
-/*
+/**
  * Convert absolute time to a timespec.
  */
 void
@@ -647,38 +721,38 @@ abstime_to_ts(struct timespec *ts, hrt_abstime abstime)
 	ts->tv_nsec = abstime * 1000;
 }
 
-/*
+/**
  * Compare a time value with the current time.
  */
 hrt_abstime
 hrt_elapsed_time(const volatile hrt_abstime *then)
 {
-	irqstate_t flags = irqsave();
+	irqstate_t flags = px4_enter_critical_section();
 
 	hrt_abstime delta = hrt_absolute_time() - *then;
 
-	irqrestore(flags);
+	px4_leave_critical_section(flags);
 
 	return delta;
 }
 
-/*
+/**
  * Store the absolute time in an interrupt-safe fashion
  */
 hrt_abstime
 hrt_store_absolute_time(volatile hrt_abstime *now)
 {
-	irqstate_t flags = irqsave();
+	irqstate_t flags = px4_enter_critical_section();
 
 	hrt_abstime ts = hrt_absolute_time();
 
-	irqrestore(flags);
+	px4_leave_critical_section(flags);
 
 	return ts;
 }
 
-/*
- * Initalise the high-resolution timing module.
+/**
+ * Initialise the high-resolution timing module.
  */
 void
 hrt_init(void)
@@ -688,11 +762,11 @@ hrt_init(void)
 
 #ifdef HRT_PPM_CHANNEL
 	/* configure the PPM input pin */
-	stm32_configgpio(GPIO_PPM_IN);
+	px4_arch_configgpio(GPIO_PPM_IN);
 #endif
 }
 
-/*
+/**
  * Call callout(arg) after interval has elapsed.
  */
 void
@@ -705,7 +779,7 @@ hrt_call_after(struct hrt_call *entry, hrt_abstime delay, hrt_callout callout, v
 			  arg);
 }
 
-/*
+/**
  * Call callout(arg) at calltime.
  */
 void
@@ -714,7 +788,7 @@ hrt_call_at(struct hrt_call *entry, hrt_abstime calltime, hrt_callout callout, v
 	hrt_call_internal(entry, calltime, 0, callout, arg);
 }
 
-/*
+/**
  * Call callout(arg) every period.
  */
 void
@@ -730,11 +804,19 @@ hrt_call_every(struct hrt_call *entry, hrt_abstime delay, hrt_abstime interval, 
 static void
 hrt_call_internal(struct hrt_call *entry, hrt_abstime deadline, hrt_abstime interval, hrt_callout callout, void *arg)
 {
-	irqstate_t flags = irqsave();
+	irqstate_t flags = px4_enter_critical_section();
 
 	/* if the entry is currently queued, remove it */
-	if (entry->deadline != 0)
+	/* note that we are using a potentially uninitialised
+	   entry->link here, but it is safe as sq_rem() doesn't
+	   dereference the passed node unless it is found in the
+	   list. So we potentially waste a bit of time searching the
+	   queue for the uninitialised entry->link but we don't do
+	   anything actually unsafe.
+	*/
+	if (entry->deadline != 0) {
 		sq_rem(&entry->link, &callout_queue);
+	}
 
 	entry->deadline = deadline;
 	entry->period = interval;
@@ -743,10 +825,10 @@ hrt_call_internal(struct hrt_call *entry, hrt_abstime deadline, hrt_abstime inte
 
 	hrt_call_enter(entry);
 
-	irqrestore(flags);
+	px4_leave_critical_section(flags);
 }
 
-/*
+/**
  * If this returns true, the call has been invoked and removed from the callout list.
  *
  * Always returns false for repeating callouts.
@@ -757,13 +839,13 @@ hrt_called(struct hrt_call *entry)
 	return (entry->deadline == 0);
 }
 
-/*
+/**
  * Remove the entry from the callout list.
  */
 void
 hrt_cancel(struct hrt_call *entry)
 {
-	irqstate_t flags = irqsave();
+	irqstate_t flags = px4_enter_critical_section();
 
 	sq_rem(&entry->link, &callout_queue);
 	entry->deadline = 0;
@@ -773,7 +855,7 @@ hrt_cancel(struct hrt_call *entry)
 	 */
 	entry->period = 0;
 
-	irqrestore(flags);
+	px4_leave_critical_section(flags);
 }
 
 static void
@@ -785,7 +867,7 @@ hrt_call_enter(struct hrt_call *entry)
 
 	if ((call == NULL) || (entry->deadline < call->deadline)) {
 		sq_addfirst(&entry->link, &callout_queue);
-		//lldbg("call enter at head, reschedule\n");
+		hrtinfo("call enter at head, reschedule\n");
 		/* we changed the next deadline, reschedule the timer event */
 		hrt_call_reschedule();
 
@@ -794,14 +876,14 @@ hrt_call_enter(struct hrt_call *entry)
 			next = (struct hrt_call *)sq_next(&call->link);
 
 			if ((next == NULL) || (entry->deadline < next->deadline)) {
-				//lldbg("call enter after head\n");
+				hrtinfo("call enter after head\n");
 				sq_addafter(&call->link, &entry->link, &callout_queue);
 				break;
 			}
 		} while ((call = next) != NULL);
 	}
 
-	//lldbg("scheduled\n");
+	hrtinfo("scheduled\n");
 }
 
 static void
@@ -816,14 +898,16 @@ hrt_call_invoke(void)
 
 		call = (struct hrt_call *)sq_peek(&callout_queue);
 
-		if (call == NULL)
+		if (call == NULL) {
 			break;
+		}
 
-		if (call->deadline > now)
+		if (call->deadline > now) {
 			break;
+		}
 
 		sq_rem(&call->link, &callout_queue);
-		//lldbg("call pop\n");
+		hrtinfo("call pop\n");
 
 		/* save the intended deadline for periodic calls */
 		deadline = call->deadline;
@@ -833,19 +917,25 @@ hrt_call_invoke(void)
 
 		/* invoke the callout (if there is one) */
 		if (call->callout) {
-			//lldbg("call %p: %p(%p)\n", call, call->callout, call->arg);
+			hrtinfo("call %p: %p(%p)\n", call, call->callout, call->arg);
 			call->callout(call->arg);
 		}
 
 		/* if the callout has a non-zero period, it has to be re-entered */
 		if (call->period != 0) {
-			call->deadline = deadline + call->period;
+			// re-check call->deadline to allow for
+			// callouts to re-schedule themselves
+			// using hrt_call_delay()
+			if (call->deadline <= now) {
+				call->deadline = deadline + call->period;
+			}
+
 			hrt_call_enter(call);
 		}
 	}
 }
 
-/*
+/**
  * Reschedule the next timer interrupt.
  *
  * This routine must be called with interrupts disabled.
@@ -870,19 +960,20 @@ hrt_call_reschedule()
 	 * hrt_absolute_time runs at least once per timer period.
 	 */
 	if (next != NULL) {
-		//lldbg("entry in queue\n");
+		hrtinfo("entry in queue\n");
+
 		if (next->deadline <= (now + HRT_INTERVAL_MIN)) {
-			//lldbg("pre-expired\n");
+			hrtinfo("pre-expired\n");
 			/* set a minimal deadline so that we call ASAP */
 			deadline = now + HRT_INTERVAL_MIN;
 
 		} else if (next->deadline < deadline) {
-			//lldbg("due soon\n");
+			hrtinfo("due soon\n");
 			deadline = next->deadline;
 		}
 	}
 
-	//lldbg("schedule for %u at %u\n", (unsigned)(deadline & 0xffffffff), (unsigned)(now & 0xffffffff));
+	hrtinfo("schedule for %u at %u\n", (unsigned)(deadline & 0xffffffff), (unsigned)(now & 0xffffffff));
 
 	/* set the new compare value and remember it for latency tracking */
 	rCCR_HRT = latency_baseline = deadline & 0xffff;
@@ -906,5 +997,16 @@ hrt_latency_update(void)
 	latency_counters[index]++;
 }
 
+void
+hrt_call_init(struct hrt_call *entry)
+{
+	memset(entry, 0, sizeof(*entry));
+}
+
+void
+hrt_call_delay(struct hrt_call *entry, hrt_abstime delay)
+{
+	entry->deadline = hrt_absolute_time() + delay;
+}
 
 #endif /* HRT_TIMER */

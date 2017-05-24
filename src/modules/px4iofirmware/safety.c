@@ -36,7 +36,7 @@
  * Safety button logic.
  */
 
-#include <nuttx/config.h>
+#include <px4_config.h>
 
 #include <stdbool.h>
 
@@ -45,7 +45,6 @@
 #include "px4io.h"
 
 static struct hrt_call arming_call;
-static struct hrt_call heartbeat_call;
 static struct hrt_call failsafe_call;
 
 /*
@@ -84,7 +83,11 @@ safety_init(void)
 {
 	/* arrange for the button handler to be called at 10Hz */
 	hrt_call_every(&arming_call, 1000, 100000, safety_check_button, NULL);
+}
 
+void
+failsafe_led_init(void)
+{
 	/* arrange for the failsafe blinker to be called at 8Hz */
 	hrt_call_every(&failsafe_call, 1000, 125000, failsafe_blink, NULL);
 }
@@ -107,14 +110,14 @@ safety_check_button(void *arg)
 	 * length in all cases of the if/else struct below.
 	 */
 	if (safety_button_pressed && !(r_status_flags & PX4IO_P_STATUS_FLAGS_SAFETY_OFF) &&
-		(r_setup_arming & PX4IO_P_SETUP_ARMING_IO_ARM_OK)) {
+	    (r_setup_arming & PX4IO_P_SETUP_ARMING_IO_ARM_OK)) {
 
 		if (counter < ARM_COUNTER_THRESHOLD) {
 			counter++;
 
 		} else if (counter == ARM_COUNTER_THRESHOLD) {
 			/* switch to armed state */
-			r_status_flags |= PX4IO_P_STATUS_FLAGS_SAFETY_OFF;
+			PX4_ATOMIC_MODIFY_OR(r_status_flags, PX4IO_P_STATUS_FLAGS_SAFETY_OFF);
 			counter++;
 		}
 
@@ -125,7 +128,7 @@ safety_check_button(void *arg)
 
 		} else if (counter == ARM_COUNTER_THRESHOLD) {
 			/* change to disarmed state and notify the FMU */
-			r_status_flags &= ~PX4IO_P_STATUS_FLAGS_SAFETY_OFF;
+			PX4_ATOMIC_MODIFY_CLEAR(r_status_flags, PX4IO_P_STATUS_FLAGS_SAFETY_OFF);
 			counter++;
 		}
 
@@ -146,6 +149,7 @@ safety_check_button(void *arg)
 
 	} else if (r_setup_arming & PX4IO_P_SETUP_ARMING_FMU_ARMED) {
 		pattern = LED_PATTERN_FMU_ARMED;
+
 	} else if (r_setup_arming & PX4IO_P_SETUP_ARMING_IO_ARM_OK) {
 		pattern = LED_PATTERN_FMU_OK_TO_ARM;
 
@@ -165,14 +169,15 @@ failsafe_blink(void *arg)
 	/* indicate that a serious initialisation error occured */
 	if (!(r_status_flags & PX4IO_P_STATUS_FLAGS_INIT_OK)) {
 		LED_AMBER(true);
-	    return;
-    }
+		return;
+	}
 
 	static bool failsafe = false;
 
 	/* blink the failsafe LED if we don't have FMU input */
 	if (!(r_status_flags & PX4IO_P_STATUS_FLAGS_FMU_OK)) {
 		failsafe = !failsafe;
+
 	} else {
 		failsafe = false;
 	}

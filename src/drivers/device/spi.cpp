@@ -45,8 +45,9 @@
  * non-interrupt-mode client.
  */
 
+#include <px4_config.h>
 #include <nuttx/arch.h>
-
+#include <stm32_spi.h>
 #include "spi.h"
 
 #ifndef CONFIG_SPI_EXCHANGE
@@ -69,12 +70,18 @@ SPI::SPI(const char *name,
 	// protected
 	locking_mode(LOCK_PREEMPTION),
 	// private
-	_bus(bus),
 	_device(device),
 	_mode(mode),
 	_frequency(frequency),
-	_dev(nullptr)
+	_dev(nullptr),
+	_bus(bus)
 {
+	// fill in _device_id fields for a SPI device
+	_device_id.devid_s.bus_type = DeviceBusType_SPI;
+	_device_id.devid_s.bus = bus;
+	_device_id.devid_s.address = (uint8_t)device;
+	// devtype needs to be filled in by the driver
+	_device_id.devid_s.devtype = 0;
 }
 
 SPI::~SPI()
@@ -88,11 +95,12 @@ SPI::init()
 	int ret = OK;
 
 	/* attach to the spi bus */
-	if (_dev == nullptr)
-		_dev = up_spiinitialize(_bus);
+	if (_dev == nullptr) {
+		_dev = px4_spibus_initialize(_bus);
+	}
 
 	if (_dev == nullptr) {
-		debug("failed to init SPI");
+		DEVICE_DEBUG("failed to init SPI");
 		ret = -ENOENT;
 		goto out;
 	}
@@ -104,7 +112,7 @@ SPI::init()
 	ret = probe();
 
 	if (ret != OK) {
-		debug("probe failed");
+		DEVICE_DEBUG("probe failed");
 		goto out;
 	}
 
@@ -112,12 +120,12 @@ SPI::init()
 	ret = CDev::init();
 
 	if (ret != OK) {
-		debug("cdev init failed");
+		DEVICE_DEBUG("cdev init failed");
 		goto out;
 	}
 
 	/* tell the workd where we are */
-	log("on SPI bus %d at %d", _bus, _device);
+	DEVICE_LOG("on SPI bus %d at %d (%u KHz)", _bus, _device, _frequency / 1000);
 
 out:
 	return ret;
@@ -133,26 +141,47 @@ SPI::probe()
 int
 SPI::transfer(uint8_t *send, uint8_t *recv, unsigned len)
 {
-	irqstate_t	state;
+	int result;
 
-	if ((send == nullptr) && (recv == nullptr))
+	if ((send == nullptr) && (recv == nullptr)) {
 		return -EINVAL;
-
-	/* lock the bus as required */
-	if (!up_interrupt_context()) {
-		switch (locking_mode) {
-		default:
-		case LOCK_PREEMPTION:
-			state = irqsave();
-			break;
-		case LOCK_THREADS:
-			SPI_LOCK(_dev, true);
-			break;
-		case LOCK_NONE:
-			break;
-		}
 	}
 
+	LockMode mode = up_interrupt_context() ? LOCK_NONE : locking_mode;
+
+	/* lock the bus as required */
+	switch (mode) {
+	default:
+	case LOCK_PREEMPTION: {
+			irqstate_t state = px4_enter_critical_section();
+			result = _transfer(send, recv, len);
+			px4_leave_critical_section(state);
+		}
+		break;
+
+	case LOCK_THREADS:
+		SPI_LOCK(_dev, true);
+		result = _transfer(send, recv, len);
+		SPI_LOCK(_dev, false);
+		break;
+
+	case LOCK_NONE:
+		result = _transfer(send, recv, len);
+		break;
+	}
+
+	return result;
+}
+
+void
+SPI::set_frequency(uint32_t frequency)
+{
+	_frequency = frequency;
+}
+
+int
+SPI::_transfer(uint8_t *send, uint8_t *recv, unsigned len)
+{
 	SPI_SETFREQUENCY(_dev, _frequency);
 	SPI_SETMODE(_dev, _mode);
 	SPI_SETBITS(_dev, 8);
@@ -164,27 +193,7 @@ SPI::transfer(uint8_t *send, uint8_t *recv, unsigned len)
 	/* and clean up */
 	SPI_SELECT(_dev, _device, false);
 
-	if (!up_interrupt_context()) {
-		switch (locking_mode) {
-		default:
-		case LOCK_PREEMPTION:
-			irqrestore(state);
-			break;
-		case LOCK_THREADS:
-			SPI_LOCK(_dev, false);
-			break;
-		case LOCK_NONE:
-			break;
-		}
-	}
-
 	return OK;
-}
-
-void 
-SPI::set_frequency(uint32_t frequency)
-{
-	_frequency = frequency;
 }
 
 } // namespace device
