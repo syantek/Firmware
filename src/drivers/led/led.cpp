@@ -34,12 +34,13 @@
 /**
  * @file led.cpp
  *
- * LED driver.
+ * LED driver to control the onboard LED(s) via ioctl interface.
  */
 
-#include <nuttx/config.h>
+#include <px4_config.h>
 #include <drivers/device/device.h>
-#include <drivers/drv_led.h>
+#include <drivers/drv_board_led.h>
+#include <stdio.h>
 
 /*
  * Ideally we'd be able to get these from up_internal.h,
@@ -62,11 +63,10 @@ public:
 	virtual ~LED();
 
 	virtual int		init();
-	virtual int		ioctl(struct file *filp, int cmd, unsigned long arg);
+	virtual int		ioctl(device::file_t *filp, int cmd, unsigned long arg);
 };
 
-LED::LED() :
-	CDev("led", LED_DEVICE_PATH)
+LED::LED() : CDev("led", LED0_DEVICE_PATH)
 {
 	// force immediate init/device registration
 	init();
@@ -79,6 +79,7 @@ LED::~LED()
 int
 LED::init()
 {
+	DEVICE_DEBUG("LED::init");
 	CDev::init();
 	led_init();
 
@@ -86,7 +87,7 @@ LED::init()
 }
 
 int
-LED::ioctl(struct file *filp, int cmd, unsigned long arg)
+LED::ioctl(device::file_t *filp, int cmd, unsigned long arg)
 {
 	int result = OK;
 
@@ -103,10 +104,10 @@ LED::ioctl(struct file *filp, int cmd, unsigned long arg)
 		led_toggle(arg);
 		break;
 
-
 	default:
 		result = CDev::ioctl(filp, cmd, arg);
 	}
+
 	return result;
 }
 
@@ -120,7 +121,5 @@ drv_led_start(void)
 {
 	if (gLED == nullptr) {
 		gLED = new LED;
-		if (gLED != nullptr)
-			gLED->init();
 	}
 }

@@ -37,7 +37,7 @@
  * Programmable multi-channel mixer library.
  */
 
-#include <nuttx/config.h>
+#include <px4_config.h>
 
 #include <sys/types.h>
 #include <stdint.h>
@@ -50,8 +50,13 @@
 #include <stdio.h>
 #include <math.h>
 #include <unistd.h>
+#include <ctype.h>
+#include <systemlib/err.h>
 
 #include "mixer.h"
+
+#define debug(fmt, args...)	do { } while(0)
+//#define debug(fmt, args...)	do { printf("[mixer] " fmt "\n", ##args); } while(0)
 
 Mixer::Mixer(ControlCallback control_cb, uintptr_t cb_handle) :
 	_next(nullptr),
@@ -96,22 +101,79 @@ Mixer::scale(const mixer_scaler_s &scaler, float input)
 int
 Mixer::scale_check(struct mixer_scaler_s &scaler)
 {
-	if (scaler.offset > 1.001f)
+	if (scaler.offset > 1.001f) {
 		return 1;
+	}
 
-	if (scaler.offset < -1.001f)
+	if (scaler.offset < -1.001f) {
 		return 2;
+	}
 
-	if (scaler.min_output > scaler.max_output)
+	if (scaler.min_output > scaler.max_output) {
 		return 3;
+	}
 
-	if (scaler.min_output < -1.001f)
+	if (scaler.min_output < -1.001f) {
 		return 4;
+	}
 
-	if (scaler.max_output > 1.001f)
+	if (scaler.max_output > 1.001f) {
 		return 5;
+	}
 
 	return 0;
+}
+
+const char *
+Mixer::findtag(const char *buf, unsigned &buflen, char tag)
+{
+	while (buflen >= 2) {
+		if ((buf[0] == tag) && (buf[1] == ':')) {
+			return buf;
+		}
+
+		buf++;
+		buflen--;
+	}
+
+	return nullptr;
+}
+
+const char *
+Mixer::skipline(const char *buf, unsigned &buflen)
+{
+	const char *p;
+
+	/* if we can find a CR or NL in the buffer, skip up to it */
+	if ((p = (const char *)memchr(buf, '\r', buflen)) || (p = (const char *)memchr(buf, '\n', buflen))) {
+		/* skip up to it AND one beyond - could be on the NUL symbol now */
+		buflen -= (p - buf) + 1;
+		return p + 1;
+	}
+
+	return nullptr;
+}
+
+bool
+Mixer::string_well_formed(const char *buf, unsigned &buflen)
+{
+	/* enforce that the mixer ends with a new line */
+	for (int i = buflen - 1; i >= 0; i--) {
+		if (buf[i] == '\0') {
+			continue;
+		}
+
+		/* require a space or newline at the end of the buffer, fail on printable chars */
+		if (buf[i] == '\n' || buf[i] == '\r') {
+			/* found a line ending, so no split symbols / numbers. good. */
+			return true;
+		}
+
+	}
+
+	debug("pre-parser rejected: No newline in buf");
+
+	return false;
 }
 
 /****************************************************************************/
@@ -132,6 +194,12 @@ NullMixer::mix(float *outputs, unsigned space)
 	return 0;
 }
 
+uint16_t
+NullMixer::get_saturation_status()
+{
+	return 0;
+}
+
 void
 NullMixer::groups_required(uint32_t &groups)
 {
@@ -142,21 +210,10 @@ NullMixer *
 NullMixer::from_text(const char *buf, unsigned &buflen)
 {
 	NullMixer *nm = nullptr;
-	const char *end = buf + buflen;
 
-	/* enforce that the mixer ends with space or a new line */
-	for (int i = buflen - 1; i >= 0; i--) {
-		if (buf[i] == '\0')
-			continue;
-
-		/* require a space or newline at the end of the buffer, fail on printable chars */
-		if (buf[i] == ' ' || buf[i] == '\n' || buf[i] == '\r') {
-			/* found a line ending or space, so no split symbols / numbers. good. */
-			break;
-		} else {
-			return nm;
-		}
-
+	/* enforce that the mixer ends with a new line */
+	if (!string_well_formed(buf, buflen)) {
+		return nullptr;
 	}
 
 	if ((buflen >= 2) && (buf[0] == 'Z') && (buf[1] == ':')) {

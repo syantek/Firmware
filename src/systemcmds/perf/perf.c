@@ -31,36 +31,30 @@
  *
  ****************************************************************************/
 
-/****************************************************************************
- * Included Files
- ****************************************************************************/
 
 
-#include <nuttx/config.h>
+#include <px4_config.h>
+#include <px4_module.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "systemlib/perf_counter.h"
 
-
-/****************************************************************************
- * Definitions
- ****************************************************************************/
-
-/****************************************************************************
- * Private Data
- ****************************************************************************/
-
-/****************************************************************************
- * Public Functions
- ****************************************************************************/
-
 __EXPORT int perf_main(int argc, char *argv[]);
 
-/****************************************************************************
- * user_start
- ****************************************************************************/
+
+static void print_usage(void)
+{
+	PRINT_MODULE_DESCRIPTION("Tool to print performance counters");
+
+	PRINT_MODULE_USAGE_NAME_SIMPLE("perf", "command");
+	PRINT_MODULE_USAGE_COMMAND_DESCR("reset", "Reset all counters");
+	PRINT_MODULE_USAGE_COMMAND_DESCR("latency", "Print HRT timer latency histogram");
+
+	PRINT_MODULE_USAGE_PARAM_COMMENT("Prints all performance counters if no arguments given");
+}
+
 
 int perf_main(int argc, char *argv[])
 {
@@ -68,12 +62,18 @@ int perf_main(int argc, char *argv[])
 		if (strcmp(argv[1], "reset") == 0) {
 			perf_reset_all();
 			return 0;
+
+		} else if (strcmp(argv[1], "latency") == 0) {
+			perf_print_latency(1 /* stdout */);
+			fflush(stdout);
+			return 0;
 		}
-		printf("Usage: perf <reset>\n");
+
+		print_usage();
 		return -1;
 	}
 
-	perf_print_all();
+	perf_print_all(1 /* stdout */);
 	fflush(stdout);
 	return 0;
 }

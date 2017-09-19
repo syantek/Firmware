@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2013 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2013-2015 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,14 +31,15 @@
  *
  ****************************************************************************/
 
- /**
-  * @file px4io_serial.cpp
-  *
-  * Serial interface for PX4IO
-  */
+/**
+ * @file px4io_serial.cpp
+ *
+ * Serial interface for PX4IO
+ */
 
 /* XXX trim includes */
-#include <nuttx/config.h>
+#include <px4_config.h>
+#include <px4_posix.h>
 
 #include <sys/types.h>
 #include <stdint.h>
@@ -48,6 +49,7 @@
 #include <time.h>
 #include <errno.h>
 #include <string.h>
+#include <stdio.h>
 
 #include <arch/board/board.h>
 
@@ -67,9 +69,9 @@
 
 #include <modules/px4iofirmware/protocol.h>
 
-#ifdef PX4IO_SERIAL_BASE
+#include "px4io_driver.h"
 
-device::Device	*PX4IO_serial_interface();
+#ifdef PX4IO_SERIAL_BASE
 
 /* serial register accessors */
 #define REG(_x)		(*(volatile uint32_t *)(PX4IO_SERIAL_BASE + _x))
@@ -115,10 +117,10 @@ private:
 	volatile unsigned	_rx_dma_status;
 
 	/** bus-ownership lock */
-	sem_t			_bus_semaphore;
+	px4_sem_t			_bus_semaphore;
 
 	/** client-waiting lock/signal */
-	sem_t			_completion_semaphore;
+	px4_sem_t			_completion_semaphore;
 
 	/**
 	 * Start the transaction with IO and wait for it to complete.
@@ -156,6 +158,10 @@ private:
 	perf_counter_t		_pc_idle;
 	perf_counter_t		_pc_badidle;
 
+	/* do not allow top copying this class */
+	PX4IO_serial(PX4IO_serial &);
+	PX4IO_serial &operator = (const PX4IO_serial &);
+
 };
 
 IOPacket PX4IO_serial::_dma_buffer;
@@ -172,7 +178,10 @@ PX4IO_serial::PX4IO_serial() :
 	_tx_dma(nullptr),
 	_rx_dma(nullptr),
 	_rx_dma_status(_dma_status_inactive),
-	_pc_txns(perf_alloc(PC_ELAPSED,		"io_txns     ")),
+	_bus_semaphore(SEM_INITIALIZER(0)),
+	_completion_semaphore(SEM_INITIALIZER(0)),
+	_pc_txns(perf_alloc(PC_ELAPSED, "io_txns")),
+#if 0
 	_pc_dmasetup(perf_alloc(PC_ELAPSED,	"io_dmasetup ")),
 	_pc_retries(perf_alloc(PC_COUNT,	"io_retries  ")),
 	_pc_timeouts(perf_alloc(PC_COUNT,	"io_timeouts ")),
@@ -182,6 +191,17 @@ PX4IO_serial::PX4IO_serial() :
 	_pc_uerrs(perf_alloc(PC_COUNT,		"io_uarterrs ")),
 	_pc_idle(perf_alloc(PC_COUNT,		"io_idle     ")),
 	_pc_badidle(perf_alloc(PC_COUNT,	"io_badidle  "))
+#else
+	_pc_dmasetup(nullptr),
+	_pc_retries(nullptr),
+	_pc_timeouts(nullptr),
+	_pc_crcerrs(nullptr),
+	_pc_dmaerrs(nullptr),
+	_pc_protoerrs(nullptr),
+	_pc_uerrs(nullptr),
+	_pc_idle(nullptr),
+	_pc_badidle(nullptr)
+#endif
 {
 	g_interface = this;
 }
@@ -192,6 +212,7 @@ PX4IO_serial::~PX4IO_serial()
 		stm32_dmastop(_tx_dma);
 		stm32_dmafree(_tx_dma);
 	}
+
 	if (_rx_dma != nullptr) {
 		stm32_dmastop(_rx_dma);
 		stm32_dmafree(_rx_dma);
@@ -207,12 +228,15 @@ PX4IO_serial::~PX4IO_serial()
 	irq_detach(PX4IO_SERIAL_VECTOR);
 
 	/* restore the GPIOs */
-	stm32_unconfiggpio(PX4IO_SERIAL_TX_GPIO);
-	stm32_unconfiggpio(PX4IO_SERIAL_RX_GPIO);
+	px4_arch_unconfiggpio(PX4IO_SERIAL_TX_GPIO);
+	px4_arch_unconfiggpio(PX4IO_SERIAL_RX_GPIO);
+
+	/* Disable APB clock for the USART peripheral */
+	modifyreg32(STM32_RCC_APB2ENR, RCC_APB2ENR_USART6EN, 0);
 
 	/* and kill our semaphores */
-	sem_destroy(&_completion_semaphore);
-	sem_destroy(&_bus_semaphore);
+	px4_sem_destroy(&_completion_semaphore);
+	px4_sem_destroy(&_bus_semaphore);
 
 	perf_free(_pc_txns);
 	perf_free(_pc_dmasetup);
@@ -225,22 +249,30 @@ PX4IO_serial::~PX4IO_serial()
 	perf_free(_pc_idle);
 	perf_free(_pc_badidle);
 
-	if (g_interface == this)
+	if (g_interface == this) {
 		g_interface = nullptr;
+	}
 }
 
 int
 PX4IO_serial::init()
 {
+
 	/* allocate DMA */
 	_tx_dma = stm32_dmachannel(PX4IO_SERIAL_TX_DMAMAP);
 	_rx_dma = stm32_dmachannel(PX4IO_SERIAL_RX_DMAMAP);
-	if ((_tx_dma == nullptr) || (_rx_dma == nullptr))
+
+	if ((_tx_dma == nullptr) || (_rx_dma == nullptr)) {
 		return -1;
+	}
+
+
+	/* Enable the APB clock for the USART peripheral */
+	modifyreg32(STM32_RCC_APB2ENR, 0, RCC_APB2ENR_USART6EN);
 
 	/* configure pins for serial use */
-	stm32_configgpio(PX4IO_SERIAL_TX_GPIO);
-	stm32_configgpio(PX4IO_SERIAL_RX_GPIO);
+	px4_arch_configgpio(PX4IO_SERIAL_TX_GPIO);
+	px4_arch_configgpio(PX4IO_SERIAL_RX_GPIO);
 
 	/* reset & configure the UART */
 	rCR1 = 0;
@@ -250,6 +282,7 @@ PX4IO_serial::init()
 	/* eat any existing interrupt status */
 	(void)rSR;
 	(void)rDR;
+
 
 	/* configure line speed */
 	uint32_t usartdiv32 = PX4IO_SERIAL_CLOCK / (PX4IO_SERIAL_BITRATE / 2);
@@ -262,12 +295,18 @@ PX4IO_serial::init()
 	up_enable_irq(PX4IO_SERIAL_VECTOR);
 
 	/* enable UART in DMA mode, enable error and line idle interrupts */
-	/* rCR3 = USART_CR3_EIE;*/
+	rCR3 = USART_CR3_EIE;
+
 	rCR1 = USART_CR1_RE | USART_CR1_TE | USART_CR1_UE | USART_CR1_IDLEIE;
 
 	/* create semaphores */
-	sem_init(&_completion_semaphore, 0, 0);
-	sem_init(&_bus_semaphore, 0, 1);
+	px4_sem_init(&_completion_semaphore, 0, 0);
+
+	/* _completion_semaphore use case is a signal */
+
+	px4_sem_setprotocol(&_completion_semaphore, SEM_PRIO_NONE);
+
+	px4_sem_init(&_bus_semaphore, 0, 1);
 
 
 	/* XXX this could try talking to IO */
@@ -284,7 +323,7 @@ PX4IO_serial::ioctl(unsigned operation, unsigned &arg)
 	case 1:		/* XXX magic number - test operation */
 		switch (arg) {
 		case 0:
-			lowsyslog("test 0\n");
+			syslog(LOG_INFO, "test 0\n");
 
 			/* kill DMA, this is a PIO test */
 			stm32_dmastop(_tx_dma);
@@ -294,21 +333,24 @@ PX4IO_serial::ioctl(unsigned operation, unsigned &arg)
 			for (;;) {
 				while (!(rSR & USART_SR_TXE))
 					;
+
 				rDR = 0x55;
 			}
+
 			return 0;
 
-		case 1:
-			{
+		case 1: {
 				unsigned fails = 0;
+
 				for (unsigned count = 0;; count++) {
 					uint16_t value = count & 0xffff;
 
-					if (write((PX4IO_PAGE_TEST << 8) | PX4IO_P_TEST_LED, &value, 1) != 0)
+					if (write((PX4IO_PAGE_TEST << 8) | PX4IO_P_TEST_LED, &value, 1) != 0) {
 						fails++;
-						
+					}
+
 					if (count >= 5000) {
-						lowsyslog("==== test 1 : %u failures ====\n", fails);
+						syslog(LOG_INFO, "==== test 1 : %u failures ====\n", fails);
 						perf_print_counter(_pc_txns);
 						perf_print_counter(_pc_dmasetup);
 						perf_print_counter(_pc_retries);
@@ -322,12 +364,15 @@ PX4IO_serial::ioctl(unsigned operation, unsigned &arg)
 						count = 0;
 					}
 				}
+
 				return 0;
 			}
+
 		case 2:
-			lowsyslog("test 2\n");
+			syslog(LOG_INFO, "test 2\n");
 			return 0;
 		}
+
 	default:
 		break;
 	}
@@ -342,20 +387,24 @@ PX4IO_serial::write(unsigned address, void *data, unsigned count)
 	uint8_t offset = address & 0xff;
 	const uint16_t *values = reinterpret_cast<const uint16_t *>(data);
 
-	if (count > PKT_MAX_REGS)
+	if (count > PKT_MAX_REGS) {
 		return -EINVAL;
+	}
 
-	sem_wait(&_bus_semaphore);
+	px4_sem_wait(&_bus_semaphore);
 
 	int result;
+
 	for (unsigned retries = 0; retries < 3; retries++) {
 
 		_dma_buffer.count_code = count | PKT_CODE_WRITE;
 		_dma_buffer.page = page;
 		_dma_buffer.offset = offset;
 		memcpy((void *)&_dma_buffer.regs[0], (void *)values, (2 * count));
-		for (unsigned i = count; i < PKT_MAX_REGS; i++)
+
+		for (unsigned i = count; i < PKT_MAX_REGS; i++) {
 			_dma_buffer.regs[i] = 0x55aa;
+		}
 
 		/* XXX implement check byte */
 
@@ -375,13 +424,16 @@ PX4IO_serial::write(unsigned address, void *data, unsigned count)
 
 			break;
 		}
+
 		perf_count(_pc_retries);
 	}
 
-	sem_post(&_bus_semaphore);
+	px4_sem_post(&_bus_semaphore);
 
-	if (result == OK)
+	if (result == OK) {
 		result = count;
+	}
+
 	return result;
 }
 
@@ -392,12 +444,14 @@ PX4IO_serial::read(unsigned address, void *data, unsigned count)
 	uint8_t offset = address & 0xff;
 	uint16_t *values = reinterpret_cast<uint16_t *>(data);
 
-	if (count > PKT_MAX_REGS)
+	if (count > PKT_MAX_REGS) {
 		return -EINVAL;
+	}
 
-	sem_wait(&_bus_semaphore);
+	px4_sem_wait(&_bus_semaphore);
 
 	int result;
+
 	for (unsigned retries = 0; retries < 3; retries++) {
 
 		_dma_buffer.count_code = count | PKT_CODE_READ;
@@ -417,14 +471,16 @@ PX4IO_serial::read(unsigned address, void *data, unsigned count)
 				result = -EINVAL;
 				perf_count(_pc_protoerrs);
 
-			/* compare the received count with the expected count */
+				/* compare the received count with the expected count */
+
 			} else if (PKT_COUNT(_dma_buffer) != count) {
 
 				/* IO returned the wrong number of registers - no point retrying */
 				result = -EIO;
 				perf_count(_pc_protoerrs);
 
-			/* successful read */				
+				/* successful read */
+
 			} else {
 
 				/* copy back the result */
@@ -433,13 +489,16 @@ PX4IO_serial::read(unsigned address, void *data, unsigned count)
 
 			break;
 		}
+
 		perf_count(_pc_retries);
 	}
 
-	sem_post(&_bus_semaphore);
+	px4_sem_post(&_bus_semaphore);
 
-	if (result == OK)
+	if (result == OK) {
 		result = count;
+	}
+
 	return result;
 }
 
@@ -497,25 +556,25 @@ PX4IO_serial::_wait_complete()
 		DMA_SCR_PBURST_SINGLE	|
 		DMA_SCR_MBURST_SINGLE);
 	stm32_dmastart(_tx_dma, nullptr, nullptr, false);
+	//rCR1 &= ~USART_CR1_TE;
+	//rCR1 |= USART_CR1_TE;
 	rCR3 |= USART_CR3_DMAT;
 
 	perf_end(_pc_dmasetup);
 
-	/* compute the deadline for a 5ms timeout */
+	/* compute the deadline for a 10ms timeout */
 	struct timespec abstime;
 	clock_gettime(CLOCK_REALTIME, &abstime);
-#if 0
-	abstime.tv_sec++;		/* long timeout for testing */
-#else
-	abstime.tv_nsec += 10000000;	/* 0ms timeout */
-	if (abstime.tv_nsec > 1000000000) {
+	abstime.tv_nsec += 10 * 1000 * 1000;
+
+	if (abstime.tv_nsec >= 1000 * 1000 * 1000) {
 		abstime.tv_sec++;
-		abstime.tv_nsec -= 1000000000;
+		abstime.tv_nsec -= 1000 * 1000 * 1000;
 	}
-#endif
 
 	/* wait for the transaction to complete - 64 bytes @ 1.5Mbps ~426µs */
 	int ret;
+
 	for (;;) {
 		ret = sem_timedwait(&_completion_semaphore, &abstime);
 
@@ -530,6 +589,7 @@ PX4IO_serial::_wait_complete()
 			/* check packet CRC - corrupt packet errors mean IO receive CRC error */
 			uint8_t crc = _dma_buffer.crc;
 			_dma_buffer.crc = 0;
+
 			if ((crc != crc_packet(&_dma_buffer)) | (PKT_CODE(_dma_buffer) == PKT_CODE_CORRUPT)) {
 				perf_count(_pc_crcerrs);
 				ret = -EIO;
@@ -549,7 +609,7 @@ PX4IO_serial::_wait_complete()
 		}
 
 		/* we might? see this for EINTR */
-		lowsyslog("unexpected ret %d/%d\n", ret, errno);
+		syslog(LOG_ERR, "unexpected ret %d/%d\n", ret, errno);
 	}
 
 	/* reset DMA status */
@@ -579,6 +639,7 @@ PX4IO_serial::_do_rx_dma_callback(unsigned status)
 
 		/* check for packet overrun - this will occur after DMA completes */
 		uint32_t sr = rSR;
+
 		if (sr & (USART_SR_ORE | USART_SR_RXNE)) {
 			(void)rDR;
 			status = DMA_STATUS_TEIF;
@@ -591,15 +652,17 @@ PX4IO_serial::_do_rx_dma_callback(unsigned status)
 		rCR3 &= ~(USART_CR3_DMAT | USART_CR3_DMAR);
 
 		/* complete now */
-		sem_post(&_completion_semaphore);
+		px4_sem_post(&_completion_semaphore);
 	}
 }
 
 int
 PX4IO_serial::_interrupt(int irq, void *context)
 {
-	if (g_interface != nullptr)
+	if (g_interface != nullptr) {
 		g_interface->_do_interrupt();
+	}
+
 	return 0;
 }
 
@@ -610,17 +673,17 @@ PX4IO_serial::_do_interrupt()
 	(void)rDR;		/* read DR to clear status */
 
 	if (sr & (USART_SR_ORE |	/* overrun error - packet was too big for DMA or DMA was too slow */
-		USART_SR_NE |		/* noise error - we have lost a byte due to noise */
-		USART_SR_FE)) {		/* framing error - start/stop bit lost or line break */
-		
-		/* 
+		  USART_SR_NE |		/* noise error - we have lost a byte due to noise */
+		  USART_SR_FE)) {		/* framing error - start/stop bit lost or line break */
+
+		/*
 		 * If we are in the process of listening for something, these are all fatal;
 		 * abort the DMA with an error.
 		 */
 		if (_rx_dma_status == _dma_status_waiting) {
 			_abort_dma();
-			perf_count(_pc_uerrs);
 
+			perf_count(_pc_uerrs);
 			/* complete DMA as though in error */
 			_do_rx_dma_callback(DMA_STATUS_TEIF);
 
@@ -639,9 +702,16 @@ PX4IO_serial::_do_interrupt()
 		if (_rx_dma_status == _dma_status_waiting) {
 
 			/* verify that the received packet is complete */
-			unsigned length = sizeof(_dma_buffer) - stm32_dmaresidual(_rx_dma);
+			size_t length = sizeof(_dma_buffer) - stm32_dmaresidual(_rx_dma);
+
 			if ((length < 1) || (length < PKT_SIZE(_dma_buffer))) {
 				perf_count(_pc_badidle);
+
+				/* stop the receive DMA */
+				stm32_dmastop(_rx_dma);
+
+				/* complete the short reception */
+				_do_rx_dma_callback(DMA_STATUS_TEIF);
 				return;
 			}
 

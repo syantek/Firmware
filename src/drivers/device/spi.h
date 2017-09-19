@@ -42,7 +42,7 @@
 
 #include "device.h"
 
-#include <nuttx/spi.h>
+#include <px4_spi.h>
 
 namespace device __EXPORT
 {
@@ -73,6 +73,15 @@ protected:
 	    int irq = 0);
 	virtual ~SPI();
 
+	/**
+	 * Locking modes supported by the driver.
+	 */
+	enum LockMode {
+		LOCK_PREEMPTION,	/**< the default; lock against all forms of preemption. */
+		LOCK_THREADS,		/**< lock only against other threads, using SPI_LOCK */
+		LOCK_NONE		/**< perform no locking, only safe if the bus is entirely private */
+	};
+
 	virtual int	init();
 
 	/**
@@ -102,22 +111,43 @@ protected:
 	int		transfer(uint8_t *send, uint8_t *recv, unsigned len);
 
 	/**
-	 * Locking modes supported by the driver.
+	 * Set the SPI bus frequency
+	 * This is used to change frequency on the fly. Some sensors
+	 * (such as the MPU6000) need a lower frequency for setup
+	 * registers and can handle higher frequency for sensor
+	 * value registers
+	 *
+	 * @param frequency	Frequency to set (Hz)
 	 */
-	enum LockMode {
-		LOCK_PREEMPTION,	/**< the default; lock against all forms of preemption. */
-		LOCK_THREADS,		/**< lock only against other threads, using SPI_LOCK */
-		LOCK_NONE		/**< perform no locking, only safe if the bus is entirely private */
-	};
+	void		set_frequency(uint32_t frequency);
+
+	/**
+	 * Set the SPI bus locking mode
+	 *
+	 * This set the SPI locking mode. For devices competing with NuttX SPI
+	 * drivers on a bus the right lock mode is LOCK_THREADS.
+	 *
+	 * @param mode	Locking mode
+	 */
+	void		set_lockmode(enum LockMode mode) { locking_mode = mode; }
 
 	LockMode	locking_mode;	/**< selected locking mode */
 
 private:
-	int			_bus;
 	enum spi_dev_e		_device;
 	enum spi_mode_e		_mode;
 	uint32_t		_frequency;
 	struct spi_dev_s	*_dev;
+
+	/* this class does not allow copying */
+	SPI(const SPI &);
+	SPI operator=(const SPI &);
+
+protected:
+	int			_bus;
+
+	int	_transfer(uint8_t *send, uint8_t *recv, unsigned len);
+
 };
 
 } // namespace device

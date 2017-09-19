@@ -37,34 +37,77 @@
  * Tool similar to UNIX reboot command
  */
 
-#include <nuttx/config.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <getopt.h>
-
+#include <px4_config.h>
+#include <px4_getopt.h>
+#include <px4_log.h>
+#include <px4_module.h>
+#include <px4_shutdown.h>
 #include <systemlib/systemlib.h>
-#include <systemlib/err.h>
+#include <string.h>
 
 __EXPORT int reboot_main(int argc, char *argv[]);
+
+static void print_usage(void)
+{
+	PRINT_MODULE_DESCRIPTION("Reboot the system");
+
+	PRINT_MODULE_USAGE_NAME_SIMPLE("reboot", "command");
+	PRINT_MODULE_USAGE_PARAM_FLAG('b', "Reboot into bootloader", true);
+
+	PRINT_MODULE_USAGE_ARG("lock|unlock", "Take/release the shutdown lock (for testing)", true);
+}
 
 int reboot_main(int argc, char *argv[])
 {
 	int ch;
 	bool to_bootloader = false;
 
-	while ((ch = getopt(argc, argv, "b")) != -1) {
+	int myoptind = 1;
+	const char *myoptarg = NULL;
+
+	while ((ch = px4_getopt(argc, argv, "b", &myoptind, &myoptarg)) != -1) {
 		switch (ch) {
 		case 'b':
 			to_bootloader = true;
 			break;
+
 		default:
-			errx(1, "usage: reboot [-b]\n"
-				"   -b   reboot into the bootloader");
+			print_usage();
+			return 1;
 
 		}
 	}
 
-	systemreset(to_bootloader);
+	if (myoptind >= 0 && myoptind < argc) {
+		int ret = -1;
+
+		if (strcmp(argv[myoptind], "lock") == 0) {
+			ret = px4_shutdown_lock();
+
+			if (ret != 0) {
+				PX4_ERR("lock failed (%i)", ret);
+			}
+		}
+
+		if (strcmp(argv[myoptind], "unlock") == 0) {
+			ret = px4_shutdown_unlock();
+
+			if (ret != 0) {
+				PX4_ERR("unlock failed (%i)", ret);
+			}
+		}
+
+		return ret;
+	}
+
+	int ret = px4_shutdown_request(true, to_bootloader);
+
+	if (ret < 0) {
+		PX4_ERR("reboot failed (%i)", ret);
+		return -1;
+	}
+
+	while (1) { usleep(1); } // this command should not return on success
+
+	return 0;
 }
-
-

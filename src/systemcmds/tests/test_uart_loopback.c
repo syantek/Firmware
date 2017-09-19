@@ -1,8 +1,6 @@
 /****************************************************************************
- * px4/sensors/test_gpio.c
  *
- *  Copyright (C) 2012 PX4 Development Team. All rights reserved.
- *            Lorenz Meier <lm@inf.ethz.ch>
+ *   Copyright (c) 2012, 2013 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -14,7 +12,7 @@
  *    notice, this list of conditions and the following disclaimer in
  *    the documentation and/or other materials provided with the
  *    distribution.
- * 3. Neither the name NuttX nor the names of its contributors may be
+ * 3. Neither the name PX4 nor the names of its contributors may be
  *    used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *
@@ -33,61 +31,30 @@
  *
  ****************************************************************************/
 
-/****************************************************************************
- * Included Files
- ****************************************************************************/
+/**
+ * @file test_uart_loopback.c
+ * Tests the uart outputs
+ *
+ * @author Lorenz Meier <lorenz@px4.io>
+ */
 
-#include <nuttx/config.h>
+#include <px4_config.h>
 
 #include <sys/types.h>
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <debug.h>
 
 #include <arch/board/board.h>
 
-#include "tests.h"
+#include "tests_main.h"
 
 #include <math.h>
 #include <float.h>
-
-
-/****************************************************************************
- * Pre-processor Definitions
- ****************************************************************************/
-
-/****************************************************************************
- * Private Types
- ****************************************************************************/
-
-/****************************************************************************
- * Private Function Prototypes
- ****************************************************************************/
-
-/****************************************************************************
- * Private Data
- ****************************************************************************/
-
-/****************************************************************************
- * Public Data
- ****************************************************************************/
-
-/****************************************************************************
- * Private Functions
- ****************************************************************************/
-
-
-/****************************************************************************
- * Public Functions
- ****************************************************************************/
-
-/****************************************************************************
- * Name: test_led
- ****************************************************************************/
 
 int test_uart_loopback(int argc, char *argv[])
 {
@@ -97,23 +64,28 @@ int test_uart_loopback(int argc, char *argv[])
 	int uart5_nwrite = 0;
 	int uart2_nwrite = 0;
 
-	int uart1 = open("/dev/ttyS0", O_RDWR | O_NOCTTY); //
+	/* opening stdout */
+	int stdout_fd = 1;
 
-	/* assuming NuttShell is on UART1 (/dev/ttyS0) */
-	int uart2 = open("/dev/ttyS1", O_RDWR | O_NONBLOCK | O_NOCTTY); //
-	int uart5 = open("/dev/ttyS2", O_RDWR | O_NONBLOCK | O_NOCTTY); //
+	int uart2 = open("/dev/ttyS1", O_RDWR | O_NONBLOCK | O_NOCTTY);
 
 	if (uart2 < 0) {
 		printf("ERROR opening UART2, aborting..\n");
 		return uart2;
 	}
 
+	int uart5 = open("/dev/ttyS2", O_RDWR | O_NONBLOCK | O_NOCTTY);
+
 	if (uart5 < 0) {
+		if (uart2 >= 0) {
+			close(uart2);
+		}
+
 		printf("ERROR opening UART5, aborting..\n");
 		exit(uart5);
 	}
 
-	uint8_t sample_uart1[] = {'C', 'O', 'U', 'N', 'T', ' ', '#', '\n'};
+	uint8_t sample_stdout_fd[] = {'C', 'O', 'U', 'N', 'T', ' ', '#', '\n'};
 	uint8_t sample_uart2[] = {'C', 'O', 'U', 'N', 'T', ' ', '#', 0};
 	uint8_t sample_uart5[] = {'C', 'O', 'U', 'N', 'T', ' ', '#', 0};
 
@@ -121,46 +93,50 @@ int test_uart_loopback(int argc, char *argv[])
 
 	for (i = 0; i < 1000; i++) {
 //		printf("TEST #%d\n",i);
-		write(uart1, sample_uart1, sizeof(sample_uart1));
+		write(stdout_fd, sample_stdout_fd, sizeof(sample_stdout_fd));
 
 		/* uart2 -> uart5 */
 		r = write(uart2, sample_uart2, sizeof(sample_uart2));
 
-		if (r > 0)
+		if (r > 0) {
 			uart2_nwrite += r;
+		}
 
 //		printf("TEST #%d\n",i);
-		write(uart1, sample_uart1, sizeof(sample_uart1));
+		write(stdout_fd, sample_stdout_fd, sizeof(sample_stdout_fd));
 
 		/* uart2 -> uart5 */
 		r = write(uart5, sample_uart5, sizeof(sample_uart5));
 
-		if (r > 0)
+		if (r > 0) {
 			uart5_nwrite += r;
+		}
 
 //		printf("TEST #%d\n",i);
-		write(uart1, sample_uart1, sizeof(sample_uart1));
+		write(stdout_fd, sample_stdout_fd, sizeof(sample_stdout_fd));
 
 		/* try to read back values */
 		do {
 			r = read(uart5, sample_uart2, sizeof(sample_uart2));
 
-			if (r > 0)
+			if (r > 0) {
 				uart5_nread += r;
+			}
 		} while (r > 0);
 
 //		printf("TEST #%d\n",i);
-		write(uart1, sample_uart1, sizeof(sample_uart1));
+		write(stdout_fd, sample_stdout_fd, sizeof(sample_stdout_fd));
 
 		do {
 			r = read(uart2, sample_uart5, sizeof(sample_uart5));
 
-			if (r > 0)
+			if (r > 0) {
 				uart2_nread += r;
+			}
 		} while (r > 0);
 
 //		printf("TEST #%d\n",i);
-//		write(uart1, sample_uart1, sizeof(sample_uart5));
+//		write(stdout_fd, sample_stdout_fd, sizeof(sample_uart5));
 	}
 
 	for (i = 0; i < 200000; i++) {
@@ -168,20 +144,23 @@ int test_uart_loopback(int argc, char *argv[])
 		/* try to read back values */
 		r = read(uart5, sample_uart2, sizeof(sample_uart2));
 
-		if (r > 0)
+		if (r > 0) {
 			uart5_nread += r;
+		}
 
 		r = read(uart2, sample_uart5, sizeof(sample_uart5));
 
-		if (r > 0)
+		if (r > 0) {
 			uart2_nread += r;
+		}
 
-		if ((uart2_nread == uart2_nwrite) && (uart5_nread == uart5_nwrite))
+		if ((uart2_nread == uart2_nwrite) && (uart5_nread == uart5_nwrite)) {
 			break;
+		}
 	}
 
 
-	close(uart1);
+	close(stdout_fd);
 	close(uart2);
 	close(uart5);
 

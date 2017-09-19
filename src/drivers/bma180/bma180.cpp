@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2012 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2012-2014 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -36,7 +36,8 @@
  * Driver for the Bosch BMA 180 MEMS accelerometer connected via SPI.
  */
 
-#include <nuttx/config.h>
+#include <px4_config.h>
+#include <px4_defines.h>
 
 #include <sys/types.h>
 #include <stdint.h>
@@ -65,12 +66,8 @@
 #include <drivers/drv_accel.h>
 #include <drivers/device/ringbuffer.h>
 
+#define ACCEL_DEVICE_PATH	"/dev/bma180"
 
-/* oddly, ERROR is not defined for c++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-static const int ERROR = -1;
 
 #define DIR_READ			(1<<7)
 #define DIR_WRITE			(0<<7)
@@ -147,12 +144,13 @@ private:
 	struct hrt_call		_call;
 	unsigned		_call_interval;
 
-	RingBuffer		*_reports;
+	ringbuffer::RingBuffer		*_reports;
 
-	struct accel_scale	_accel_scale;
+	struct accel_calibration_s	_accel_scale;
 	float			_accel_range_scale;
 	float			_accel_range_m_s2;
 	orb_advert_t		_accel_topic;
+	int			_class_instance;
 
 	unsigned		_current_lowpass;
 	unsigned		_current_range;
@@ -237,11 +235,14 @@ BMA180::BMA180(int bus, spi_dev_e device) :
 	_reports(nullptr),
 	_accel_range_scale(0.0f),
 	_accel_range_m_s2(0.0f),
-	_accel_topic(-1),
+	_accel_topic(nullptr),
+	_class_instance(-1),
 	_current_lowpass(0),
 	_current_range(0),
 	_sample_perf(perf_alloc(PC_ELAPSED, "bma180_read"))
 {
+	_device_id.devid_s.devtype = DRV_ACC_DEVTYPE_BMA180;
+
 	// enable debug() calls
 	_debug_enabled = true;
 
@@ -260,8 +261,9 @@ BMA180::~BMA180()
 	stop();
 
 	/* free any existing reports */
-	if (_reports != nullptr)
+	if (_reports != nullptr) {
 		delete _reports;
+	}
 
 	/* delete the perf counter */
 	perf_free(_sample_perf);
@@ -270,22 +272,19 @@ BMA180::~BMA180()
 int
 BMA180::init()
 {
-	int ret = ERROR;
+	int ret = PX4_ERROR;
 
 	/* do SPI init (and probe) first */
-	if (SPI::init() != OK)
+	if (SPI::init() != OK) {
 		goto out;
+	}
 
 	/* allocate basic report buffers */
-	_reports = new RingBuffer(2, sizeof(accel_report));
+	_reports = new ringbuffer::RingBuffer(2, sizeof(accel_report));
 
-	if (_reports == nullptr)
+	if (_reports == nullptr) {
 		goto out;
-
-	/* advertise sensor topic */
-	struct accel_report zero_report;
-	memset(&zero_report, 0, sizeof(zero_report));
-	_accel_topic = orb_advertise(ORB_ID(sensor_accel), &zero_report);
+	}
 
 	/* perform soft reset (p48) */
 	write_reg(ADDR_RESET, SOFT_RESET);
@@ -311,15 +310,28 @@ BMA180::init()
 	/* disable writing to chip config */
 	modify_reg(ADDR_CTRL_REG0, REG0_WRITE_ENABLE, 0);
 
-	if (set_range(4)) warnx("Failed setting range");
+	if (set_range(4)) { warnx("Failed setting range"); }
 
-	if (set_lowpass(75)) warnx("Failed setting lowpass");
+	if (set_lowpass(75)) { warnx("Failed setting lowpass"); }
 
 	if (read_reg(ADDR_CHIP_ID) == CHIP_ID) {
 		ret = OK;
 
 	} else {
-		ret = ERROR;
+		ret = PX4_ERROR;
+	}
+
+	_class_instance = register_class_devname(ACCEL_DEVICE_PATH);
+
+	/* advertise sensor topic, measure manually to initialize valid report */
+	measure();
+
+	if (_class_instance == CLASS_DEVICE_PRIMARY) {
+		struct accel_report arp;
+		_reports->get(&arp);
+
+		/* measurement will have generated a report, publish */
+		_accel_topic = orb_advertise(ORB_ID(sensor_accel), &arp);
 	}
 
 out:
@@ -332,8 +344,9 @@ BMA180::probe()
 	/* dummy read to ensure SPI state machine is sane */
 	read_reg(ADDR_CHIP_ID);
 
-	if (read_reg(ADDR_CHIP_ID) == CHIP_ID)
+	if (read_reg(ADDR_CHIP_ID) == CHIP_ID) {
 		return OK;
+	}
 
 	return -EIO;
 }
@@ -346,8 +359,9 @@ BMA180::read(struct file *filp, char *buffer, size_t buflen)
 	int ret = 0;
 
 	/* buffer must be large enough */
-	if (count < 1)
+	if (count < 1) {
 		return -ENOSPC;
+	}
 
 	/* if automatic measurement is enabled */
 	if (_call_interval > 0) {
@@ -373,8 +387,9 @@ BMA180::read(struct file *filp, char *buffer, size_t buflen)
 	measure();
 
 	/* measurement will have generated a report, copy it out */
-	if (_reports->get(arp))
+	if (_reports->get(arp)) {
 		ret = sizeof(*arp);
+	}
 
 	return ret;
 }
@@ -387,27 +402,27 @@ BMA180::ioctl(struct file *filp, int cmd, unsigned long arg)
 	case SENSORIOCSPOLLRATE: {
 			switch (arg) {
 
-				/* switching to manual polling */
+			/* switching to manual polling */
 			case SENSOR_POLLRATE_MANUAL:
 				stop();
 				_call_interval = 0;
 				return OK;
 
-				/* external signalling not supported */
+			/* external signalling not supported */
 			case SENSOR_POLLRATE_EXTERNAL:
 
-				/* zero would be bad */
+			/* zero would be bad */
 			case 0:
 				return -EINVAL;
 
 
-				/* set default/max polling rate */
+			/* set default/max polling rate */
 			case SENSOR_POLLRATE_MAX:
 			case SENSOR_POLLRATE_DEFAULT:
 				/* With internal low pass filters enabled, 250 Hz is sufficient */
 				return ioctl(filp, SENSORIOCSPOLLRATE, 250);
 
-				/* adjust to a legal polling interval in Hz */
+			/* adjust to a legal polling interval in Hz */
 			default: {
 					/* do we need to start internal polling? */
 					bool want_start = (_call_interval == 0);
@@ -416,16 +431,18 @@ BMA180::ioctl(struct file *filp, int cmd, unsigned long arg)
 					unsigned ticks = 1000000 / arg;
 
 					/* check against maximum sane rate */
-					if (ticks < 1000)
+					if (ticks < 1000) {
 						return -EINVAL;
+					}
 
 					/* update interval for next measurement */
 					/* XXX this is a bit shady, but no other way to adjust... */
 					_call.period = _call_interval = ticks;
 
 					/* if we need to start the poll state machine, do it */
-					if (want_start)
+					if (want_start) {
 						start();
+					}
 
 					return OK;
 				}
@@ -433,25 +450,29 @@ BMA180::ioctl(struct file *filp, int cmd, unsigned long arg)
 		}
 
 	case SENSORIOCGPOLLRATE:
-		if (_call_interval == 0)
+		if (_call_interval == 0) {
 			return SENSOR_POLLRATE_MANUAL;
+		}
 
 		return 1000000 / _call_interval;
 
 	case SENSORIOCSQUEUEDEPTH: {
-		/* lower bound is mandatory, upper bound is a sanity check */
-		if ((arg < 2) || (arg > 100))
-			return -EINVAL;
-		
-		irqstate_t flags = irqsave();
-		if (!_reports->resize(arg)) {
-			irqrestore(flags);
-			return -ENOMEM;
+			/* lower bound is mandatory, upper bound is a sanity check */
+			if ((arg < 2) || (arg > 100)) {
+				return -EINVAL;
+			}
+
+			irqstate_t flags = px4_enter_critical_section();
+
+			if (!_reports->resize(arg)) {
+				px4_leave_critical_section(flags);
+				return -ENOMEM;
+			}
+
+			px4_leave_critical_section(flags);
+
+			return OK;
 		}
-		irqrestore(flags);
-		
-		return OK;
-	}
 
 	case SENSORIOCGQUEUEDEPTH:
 		return _reports->size();
@@ -474,12 +495,12 @@ BMA180::ioctl(struct file *filp, int cmd, unsigned long arg)
 
 	case ACCELIOCSSCALE:
 		/* copy scale in */
-		memcpy(&_accel_scale, (struct accel_scale *) arg, sizeof(_accel_scale));
+		memcpy(&_accel_scale, (struct accel_calibration_s *) arg, sizeof(_accel_scale));
 		return OK;
 
 	case ACCELIOCGSCALE:
 		/* copy scale out */
-		memcpy((struct accel_scale *) arg, &_accel_scale, sizeof(_accel_scale));
+		memcpy((struct accel_calibration_s *) arg, &_accel_scale, sizeof(_accel_scale));
 		return OK;
 
 	case ACCELIOCSRANGE:
@@ -533,11 +554,13 @@ BMA180::set_range(unsigned max_g)
 {
 	uint8_t rangebits;
 
-	if (max_g == 0)
+	if (max_g == 0) {
 		max_g = 16;
+	}
 
-	if (max_g > 16)
+	if (max_g > 16) {
 		return -ERANGE;
+	}
 
 	if (max_g <= 2) {
 		_current_range = 2;
@@ -690,6 +713,7 @@ BMA180::measure()
 	 * measurement flow without using the external interrupt.
 	 */
 	report.timestamp = hrt_absolute_time();
+	report.error_count = 0;
 	/*
 	 * y of board is x of sensor and x of board is -y of sensor
 	 * perform only the axis assignment here.
@@ -722,7 +746,9 @@ BMA180::measure()
 	poll_notify(POLLIN);
 
 	/* publish for subscribers */
-	orb_publish(ORB_ID(sensor_accel), _accel_topic, &report);
+	if (_accel_topic != nullptr && !(_pub_blocked)) {
+		orb_publish(ORB_ID(sensor_accel), _accel_topic, &report);
+	}
 
 	/* stop the perf counter */
 	perf_end(_sample_perf);
@@ -756,26 +782,31 @@ start()
 {
 	int fd;
 
-	if (g_dev != nullptr)
+	if (g_dev != nullptr) {
 		errx(1, "already started");
+	}
 
 	/* create the driver */
-	g_dev = new BMA180(1 /* XXX magic number */, (spi_dev_e)PX4_SPIDEV_ACCEL);
+	g_dev = new BMA180(1 /* XXX magic number */, (spi_dev_e)PX4_SPIDEV_BMA);
 
-	if (g_dev == nullptr)
+	if (g_dev == nullptr) {
 		goto fail;
+	}
 
-	if (OK != g_dev->init())
+	if (OK != g_dev->init()) {
 		goto fail;
+	}
 
 	/* set the poll rate to default, starts automatic data collection */
 	fd = open(ACCEL_DEVICE_PATH, O_RDONLY);
 
-	if (fd < 0)
+	if (fd < 0) {
 		goto fail;
+	}
 
-	if (ioctl(fd, SENSORIOCSPOLLRATE, SENSOR_POLLRATE_DEFAULT) < 0)
+	if (ioctl(fd, SENSORIOCSPOLLRATE, SENSOR_POLLRATE_DEFAULT) < 0) {
 		goto fail;
+	}
 
 	exit(0);
 fail:
@@ -808,14 +839,16 @@ test()
 		    ACCEL_DEVICE_PATH);
 
 	/* reset to manual polling */
-	if (ioctl(fd, SENSORIOCSPOLLRATE, SENSOR_POLLRATE_MANUAL) < 0)
+	if (ioctl(fd, SENSORIOCSPOLLRATE, SENSOR_POLLRATE_MANUAL) < 0) {
 		err(1, "reset to manual polling");
+	}
 
 	/* do a simple demand read */
 	sz = read(fd, &a_report, sizeof(a_report));
 
-	if (sz != sizeof(a_report))
+	if (sz != sizeof(a_report)) {
 		err(1, "immediate acc read failed");
+	}
 
 	warnx("single read");
 	warnx("time:     %lld", a_report.timestamp);
@@ -842,14 +875,17 @@ reset()
 {
 	int fd = open(ACCEL_DEVICE_PATH, O_RDONLY);
 
-	if (fd < 0)
+	if (fd < 0) {
 		err(1, "failed ");
+	}
 
-	if (ioctl(fd, SENSORIOCRESET, 0) < 0)
+	if (ioctl(fd, SENSORIOCRESET, 0) < 0) {
 		err(1, "driver reset failed");
+	}
 
-	if (ioctl(fd, SENSORIOCSPOLLRATE, SENSOR_POLLRATE_DEFAULT) < 0)
+	if (ioctl(fd, SENSORIOCSPOLLRATE, SENSOR_POLLRATE_DEFAULT) < 0) {
 		err(1, "driver poll restart failed");
+	}
 
 	exit(0);
 }
@@ -860,8 +896,9 @@ reset()
 void
 info()
 {
-	if (g_dev == nullptr)
+	if (g_dev == nullptr) {
 		errx(1, "BMA180: driver not running");
+	}
 
 	printf("state @ %p\n", g_dev);
 	g_dev->print_info();
@@ -879,26 +916,30 @@ bma180_main(int argc, char *argv[])
 	 * Start/load the driver.
 
 	 */
-	if (!strcmp(argv[1], "start"))
+	if (!strcmp(argv[1], "start")) {
 		bma180::start();
+	}
 
 	/*
 	 * Test the driver/device.
 	 */
-	if (!strcmp(argv[1], "test"))
+	if (!strcmp(argv[1], "test")) {
 		bma180::test();
+	}
 
 	/*
 	 * Reset the driver.
 	 */
-	if (!strcmp(argv[1], "reset"))
+	if (!strcmp(argv[1], "reset")) {
 		bma180::reset();
+	}
 
 	/*
 	 * Print driver information.
 	 */
-	if (!strcmp(argv[1], "info"))
+	if (!strcmp(argv[1], "info")) {
 		bma180::info();
+	}
 
 	errx(1, "unrecognised command, try 'start', 'test', 'reset' or 'info'");
 }

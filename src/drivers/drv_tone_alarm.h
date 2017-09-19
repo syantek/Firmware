@@ -31,7 +31,9 @@
  *
  ****************************************************************************/
 
-/*
+/**
+ * @file drv_tone_alarm.h
+ *
  * Driver for the PX4 audio alarm port, /dev/tone_alarm.
  *
  * The tone_alarm driver supports a set of predefined "alarm"
@@ -60,10 +62,10 @@
 
 #include <sys/ioctl.h>
 
-#define TONEALARM_DEVICE_PATH "/dev/tone_alarm"
+#define TONEALARM0_DEVICE_PATH "/dev/tone_alarm0"
 
 #define _TONE_ALARM_BASE	0x7400
-#define TONE_SET_ALARM		_IOC(_TONE_ALARM_BASE, 1)
+#define TONE_SET_ALARM		_PX4_IOC(_TONE_ALARM_BASE, 1)
 
 /* structure describing one note in a tone pattern */
 struct tone_note {
@@ -134,16 +136,16 @@ enum {
 	TONE_NOTIFY_POSITIVE_TUNE,
 	TONE_NOTIFY_NEUTRAL_TUNE,
 	TONE_NOTIFY_NEGATIVE_TUNE,
-	/* Do not include these unused tunes
-	TONE_CHARGE_TUNE,
-	TONE_DIXIE_TUNE,
-	TONE_CUCURACHA_TUNE,
-	TONE_YANKEE_TUNE,
-	TONE_DAISY_TUNE,
-	TONE_WILLIAM_TELL_TUNE, */
 	TONE_ARMING_WARNING_TUNE,
 	TONE_BATTERY_WARNING_SLOW_TUNE,
 	TONE_BATTERY_WARNING_FAST_TUNE,
+	TONE_GPS_WARNING_TUNE,
+	TONE_ARMING_FAILURE_TUNE,
+	TONE_PARACHUTE_RELEASE_TUNE,
+	TONE_EKF_WARNING_TUNE,
+	TONE_BARO_WARNING_TUNE,
+	TONE_SINGLE_BEEP_TUNE,
+	TONE_HOME_SET,
 	TONE_NUMBER_OF_TUNES
 };
 
