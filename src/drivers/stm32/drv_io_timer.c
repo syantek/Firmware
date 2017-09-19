@@ -232,6 +232,12 @@ int io_timer_handler3(int irq, void *context)
 
 }
 
+int io_timer_handler4(int irq, void *context)
+{
+	return io_timer_handler(4);
+
+}
+
 static inline int validate_timer_index(unsigned timer)
 {
 	return (timer < MAX_IO_TIMERS && io_timers[timer].base != 0) ? 0 : -EINVAL;
@@ -451,7 +457,7 @@ static int timer_set_rate(unsigned timer, unsigned rate)
 {
 
 	/* configure the timer to update at the desired rate */
-	rARR(timer) = BOARD_PWM_FREQ / rate;
+	rARR(timer) = (BOARD_PWM_FREQ / rate) - 1;
 
 	/* generate an update event; reloads the counter and all registers */
 	rEGR(timer) = GTIM_EGR_UG;
@@ -502,7 +508,7 @@ void io_timer_trigger(void)
 			}
 		}
 
-		/* Now do them all wit the shortest delay in between */
+		/* Now do them all with the shortest delay in between */
 
 		irqstate_t flags = px4_enter_critical_section();
 

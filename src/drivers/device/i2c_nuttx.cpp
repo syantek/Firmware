@@ -49,7 +49,7 @@ namespace device
  *  All calls to init() will NOT set the buss frequency
  */
 
-unsigned int I2C::_bus_clocks[3] = { 100000, 100000, 100000 };
+unsigned int I2C::_bus_clocks[BOARD_NUMBER_I2C_BUSES] = BOARD_I2C_BUS_CLOCK_INIT;
 
 I2C::I2C(const char *name,
 	 const char *devname,
@@ -208,7 +208,7 @@ I2C::transfer(const uint8_t *send, unsigned send_len, uint8_t *recv, unsigned re
 		}
 
 		if (recv_len > 0) {
-			msgv[msgs].frequency = _bus_clocks[_bus - 1];;
+			msgv[msgs].frequency = _bus_clocks[_bus - 1];
 			msgv[msgs].addr = _address;
 			msgv[msgs].flags = I2C_M_READ;
 			msgv[msgs].buffer = recv;

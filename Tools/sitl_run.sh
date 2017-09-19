@@ -88,7 +88,7 @@ SIM_PID=0
 
 if [ "$program" == "jmavsim" ] && [ ! -n "$no_sim" ]
 then
-	$src_path/Tools/jmavsim_run.sh &
+	$src_path/Tools/jmavsim_run.sh -r 500 &
 	SIM_PID=`echo $!`
 	cd ../..
 elif [ "$program" == "gazebo" ] && [ ! -n "$no_sim" ]
@@ -104,32 +104,19 @@ then
 		if [[ -n "$HEADLESS" ]]; then
 			echo "not running gazebo gui"
 		else
-			gzclient --verbose &
+			# gzserver needs to be running to avoid a race. Since the launch
+			# is putting it into the background we need to avoid it by backing off
+			sleep 3
+			nice -n 20 gzclient --verbose &
 			GUI_PID=`echo $!`
 		fi
 	else
 		echo "You need to have gazebo simulator installed!"
 		exit 1
 	fi
-elif [ "$program" == "replay" ] && [ ! -n "$no_sim" ]
-then
-	echo "Replaying logfile: $logfile"
-	# This is not a simulator, but a log file to replay
-
-	# Check if we need to creat a param file to allow user to change parameters
-	if ! [ -f "$rootfs/replay_params.txt" ]
-		then
-		mkdir -p $rootfs
-		touch $rootfs/replay_params.txt
-	fi
 fi
 
 cd $working_dir
-
-if [ "$logfile" != "" ]
-then
-	cp $logfile $rootfs/replay.px4log
-fi
 
 # Do not exit on failure now from here on because we want the complete cleanup
 set +e

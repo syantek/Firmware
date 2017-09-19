@@ -90,7 +90,7 @@ class BMP280 : public device::CDev
 {
 public:
 	BMP280(bmp280::IBMP280 *interface, const char *path);
-	~BMP280();
+	virtual ~BMP280();
 
 	virtual int		init();
 
@@ -175,7 +175,7 @@ BMP280::~BMP280()
 	stop_cycle();
 
 	if (_class_instance != -1) {
-		unregister_class_devname(get_devname(), _class_instance);
+		unregister_class_devname(BARO_BASE_DEVICE_PATH, _class_instance);
 	}
 
 	/* free any existing reports */
@@ -187,15 +187,12 @@ BMP280::~BMP280()
 		orb_unadvertise(_baro_topic);
 	}
 
-
 	// free perf counters
 	perf_free(_sample_perf);
 	perf_free(_measure_perf);
 	perf_free(_comms_errors);
 
 	delete _interface;
-
-
 }
 
 int
@@ -358,9 +355,12 @@ BMP280::ioctl(struct file *filp, int cmd, unsigned long arg)
 				return -EINVAL;
 
 			case SENSOR_POLLRATE_MAX:
+
+			/* FALLTHROUGH */
 			case SENSOR_POLLRATE_DEFAULT:
 				ticks = _max_mesure_ticks;
 
+			/* FALLTHROUGH */
 			default: {
 					if (ticks == 0) {
 						ticks = USEC2TICK(USEC_PER_SEC / arg);
@@ -669,9 +669,13 @@ start_bus(struct bmp280_bus_option &bus)
 
 	bus.dev = new BMP280(interface, bus.devpath);
 
-	if (bus.dev != nullptr && OK != bus.dev->init()) {
+	if (bus.dev == nullptr) {
+		return false;
+	}
+
+	if (OK != bus.dev->init()) {
 		delete bus.dev;
-		bus.dev = NULL;
+		bus.dev = nullptr;
 		return false;
 	}
 
@@ -688,7 +692,6 @@ start_bus(struct bmp280_bus_option &bus)
 		PX4_ERR("failed setting default poll rate");
 		exit(1);
 	}
-
 
 	close(fd);
 	return true;
@@ -971,13 +974,6 @@ usage()
 }
 
 } // namespace
-
-
-bmp280::IBMP280::~IBMP280()
-{
-
-}
-
 
 int
 bmp280_main(int argc, char *argv[])

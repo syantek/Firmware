@@ -58,7 +58,7 @@ set(config_module_list
 	#
 	# Library modules
 	#
-	modules/param
+	modules/systemlib/param
 	modules/systemlib
 	modules/systemlib/mixer
 	modules/uORB
@@ -70,12 +70,12 @@ set(config_module_list
 	#
 	drivers/gps
 	drivers/pwm_out_rc_in
+	drivers/spektrum_rc
 	drivers/qshell/qurt
 
 	#
 	# FC_ADDON drivers
 	#
-	platforms/qurt/fc_addon/rc_receiver
 	platforms/qurt/fc_addon/uart_esc
 
 	#
@@ -91,8 +91,10 @@ set(config_module_list
 	lib/terrain_estimation
 	lib/runway_takeoff
 	lib/tailsitter_recovery
+	lib/rc
 	lib/version
 	lib/DriverFramework/framework
+	lib/micro-CDR
 
 	#
 	# QuRT port

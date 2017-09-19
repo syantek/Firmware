@@ -20,12 +20,14 @@ set(config_module_list
 	drivers/lsm303d
 	drivers/l3gd20
 	drivers/ms5611
-	drivers/trone
+	drivers/teraranger
 	drivers/gps
 	drivers/pwm_out_sim
 	drivers/airspeed
 	drivers/ets_airspeed
-	drivers/meas_airspeed
+	drivers/ms4525_airspeed
+	drivers/ms5525_airspeed
+	drivers/sdp3x_airspeed
 	#drivers/frsky_telemetry
 	modules/sensors
 	#drivers/pwm_input
@@ -59,9 +61,8 @@ set(config_module_list
 	#drivers/test_ppm
 	#lib/rc/rc_tests
 	#modules/commander/commander_tests
-	#modules/controllib_test
+	#lib/controllib/controllib_test
 	#modules/mavlink/mavlink_tests
-	#modules/unit_test
 	#modules/uORB/uORB_tests
 	#systemcmds/tests
 
@@ -86,8 +87,10 @@ set(config_module_list
 	#
 	# Vehicle Control
 	#
-	modules/fw_pos_control_l1
 	modules/fw_att_control
+	modules/fw_pos_control_l1
+	modules/gnd_att_control
+	modules/gnd_pos_control
 	modules/mc_att_control
 	modules/mc_pos_control
 	modules/vtol_att_control
@@ -101,7 +104,7 @@ set(config_module_list
 	#
 	# Library modules
 	#
-	modules/param
+	modules/systemlib/param
 	modules/systemlib
 	modules/systemlib/mixer
 	modules/uORB
@@ -127,6 +130,7 @@ set(config_module_list
 	lib/version
 	lib/DriverFramework/framework
 	platforms/nuttx
+	lib/micro-CDR
 
 	# had to add for cmake, not sure why wasn't in original config
 	platforms/common
@@ -169,14 +173,6 @@ set(config_module_list
 set(config_extra_builtin_cmds
 	serdis
 	sercon
-	)
-
-set(config_extra_libs
-	uavcan
-	uavcan_stm32_driver
-	)
-
-set(config_io_extra_libs
 	)
 
 add_custom_target(sercon)

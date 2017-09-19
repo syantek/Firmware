@@ -64,6 +64,7 @@
 #include <px4_tasks.h>
 #include <systemlib/circuit_breaker.h>
 #include <systemlib/err.h>
+#include <systemlib/mixer/mixer.h>
 #include <systemlib/param/param.h>
 #include <systemlib/perf_counter.h>
 #include <systemlib/systemlib.h>
@@ -161,27 +162,12 @@ private:
 	struct actuator_controls_s			_actuators;			/**< actuator controls */
 	struct actuator_armed_s				_armed;				/**< actuator arming status */
 	struct vehicle_status_s				_vehicle_status;	/**< vehicle status */
-	struct multirotor_motor_limits_s	_motor_limits;		/**< motor limits */
 	struct mc_att_ctrl_status_s 		_controller_status; /**< controller status */
 	struct battery_status_s				_battery_status;	/**< battery status */
 	struct sensor_gyro_s			_sensor_gyro;		/**< gyro data before thermal correctons and ekf bias estimates are applied */
 	struct sensor_correction_s		_sensor_correction;		/**< sensor thermal corrections */
 
-	union {
-		struct {
-			uint16_t motor_pos	: 1; // 0 - true when any motor has saturated in the positive direction
-			uint16_t motor_neg	: 1; // 1 - true when any motor has saturated in the negative direction
-			uint16_t roll_pos	: 1; // 2 - true when a positive roll demand change will increase saturation
-			uint16_t roll_neg	: 1; // 3 - true when a negative roll demand change will increase saturation
-			uint16_t pitch_pos	: 1; // 4 - true when a positive pitch demand change will increase saturation
-			uint16_t pitch_neg	: 1; // 5 - true when a negative pitch demand change will increase saturation
-			uint16_t yaw_pos	: 1; // 6 - true when a positive yaw demand change will increase saturation
-			uint16_t yaw_neg	: 1; // 7 - true when a negative yaw demand change will increase saturation
-			uint16_t thrust_pos	: 1; // 8 - true when a positive thrust demand change will increase saturation
-			uint16_t thrust_neg	: 1; // 9 - true when a negative thrust demand change will increase saturation
-		} flags;
-		uint16_t value;
-	} _saturation_status;
+	MultirotorMixer::saturation_status _saturation_status{};
 
 	perf_counter_t	_loop_perf;			/**< loop performance counter */
 	perf_counter_t	_controller_latency_perf;
@@ -415,13 +401,10 @@ MulticopterAttitudeControl::MulticopterAttitudeControl() :
 	_actuators{},
 	_armed{},
 	_vehicle_status{},
-	_motor_limits{},
 	_controller_status{},
 	_battery_status{},
 	_sensor_gyro{},
 	_sensor_correction{},
-
-	_saturation_status{},
 	/* performance counters */
 	_loop_perf(perf_alloc(PC_ELAPSED, "mc_att_control")),
 	_controller_latency_perf(perf_alloc_once(PC_ELAPSED, "ctrl_latency")),
@@ -784,8 +767,10 @@ MulticopterAttitudeControl::vehicle_motor_limits_poll()
 	orb_check(_motor_limits_sub, &updated);
 
 	if (updated) {
-		orb_copy(ORB_ID(multirotor_motor_limits), _motor_limits_sub, &_motor_limits);
-		_saturation_status.value = _motor_limits.saturation_status;
+		multirotor_motor_limits_s motor_limits = {};
+		orb_copy(ORB_ID(multirotor_motor_limits), _motor_limits_sub, &motor_limits);
+
+		_saturation_status.value = motor_limits.saturation_status;
 	}
 }
 
@@ -1015,7 +1000,7 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 	rates(2) -= _ctrl_state.yaw_rate_bias;
 
 	math::Vector<3> rates_p_scaled = _params.rate_p.emult(pid_attenuations(_params.tpa_breakpoint_p, _params.tpa_rate_p));
-	math::Vector<3> rates_i_scaled = _params.rate_i.emult(pid_attenuations(_params.tpa_breakpoint_i, _params.tpa_rate_i));
+	//math::Vector<3> rates_i_scaled = _params.rate_i.emult(pid_attenuations(_params.tpa_breakpoint_i, _params.tpa_rate_i));
 	math::Vector<3> rates_d_scaled = _params.rate_d.emult(pid_attenuations(_params.tpa_breakpoint_d, _params.tpa_rate_d));
 
 	/* angular rates error */
@@ -1362,7 +1347,7 @@ MulticopterAttitudeControl::start()
 	/* start the task */
 	_control_task = px4_task_spawn_cmd("mc_att_control",
 					   SCHED_DEFAULT,
-					   SCHED_PRIORITY_MAX - 5,
+					   SCHED_PRIORITY_ATTITUDE_CONTROL,
 					   1700,
 					   (px4_main_t)&MulticopterAttitudeControl::task_main_trampoline,
 					   nullptr);

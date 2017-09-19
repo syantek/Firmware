@@ -50,8 +50,6 @@
 #include <unistd.h>
 #include <math.h>
 
-#include <px4iofirmware/protocol.h>
-
 #include "mixer.h"
 
 #define debug(fmt, args...)	do { } while(0)
@@ -236,7 +234,7 @@ HelicopterMixer::from_text(Mixer::ControlCallback control_cb, uintptr_t cb_handl
 }
 
 unsigned
-HelicopterMixer::mix(float *outputs, unsigned space, uint16_t *status_reg)
+HelicopterMixer::mix(float *outputs, unsigned space)
 {
 	/* Find index to use for curves */
 	float thrust_cmd = get_control(0, 3);

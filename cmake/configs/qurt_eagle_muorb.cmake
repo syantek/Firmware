@@ -31,7 +31,7 @@ set(config_module_list
 	#
 	# Library modules
 	#
-	modules/param
+	modules/systemlib/param
 	modules/systemlib
 	modules/uORB
 
@@ -45,6 +45,7 @@ set(config_module_list
 	lib/conversion
 	lib/version
 	lib/DriverFramework/framework
+	lib/micro-CDR
 
 	#
 	# QuRT port

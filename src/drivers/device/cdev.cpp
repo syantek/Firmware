@@ -43,8 +43,9 @@
 #include <sys/ioctl.h>
 #include <arch/irq.h>
 
-#include <stdlib.h>
-#include <stdio.h>
+#include <cstdlib>
+#include <cstdio>
+#include <cstring>
 
 #ifdef CONFIG_DISABLE_POLL
 # error This driver is not compatible with CONFIG_DISABLE_POLL
@@ -84,7 +85,7 @@ read	: cdev_read,
 write	: cdev_write,
 seek	: cdev_seek,
 ioctl	: cdev_ioctl,
-poll	: cdev_poll,
+poll	: cdev_poll
 };
 
 CDev::CDev(const char *name,

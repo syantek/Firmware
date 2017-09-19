@@ -58,13 +58,13 @@
 #include <systemlib/param/param.h>
 #include <systemlib/pwm_limit/pwm_limit.h>
 
+#include "tap_esc_common.h"
+
 #define NAN_VALUE	(0.0f/0.0f)
 
 #ifndef B250000
 #define B250000 250000
 #endif
-
-#define ESC_HAVE_CURRENT_SENSOR
 
 #include "drv_tap_esc.h"
 
@@ -106,7 +106,6 @@ protected:
 	void select_responder(uint8_t sel);
 private:
 
-	static const uint8_t crcTable[256];
 	static const uint8_t device_mux_map[TAP_ESC_MAX_MOTOR_NUM];
 	static const uint8_t device_dir_map[TAP_ESC_MAX_MOTOR_NUM];
 
@@ -159,7 +158,6 @@ private:
 	inline int control_callback(uint8_t control_group, uint8_t control_index, float &input);
 };
 
-const uint8_t TAP_ESC::crcTable[256] = TAP_ESC_CRC;
 const uint8_t TAP_ESC::device_mux_map[TAP_ESC_MAX_MOTOR_NUM] = ESC_POS;
 const uint8_t TAP_ESC::device_dir_map[TAP_ESC_MAX_MOTOR_NUM] = ESC_DIR;
 
@@ -406,7 +404,7 @@ uint8_t TAP_ESC::crc8_esc(uint8_t *p, uint8_t len)
 	uint8_t crc = 0;
 
 	for (uint8_t i = 0; i < len; i++) {
-		crc = crcTable[crc^*p++];
+		crc = tap_esc_common::crc_table[crc^*p++];
 	}
 
 	return crc;
@@ -657,7 +655,7 @@ TAP_ESC::cycle()
 		if (_is_armed && _mixers != nullptr) {
 
 			/* do mixing */
-			num_outputs = _mixers->mix(&_outputs.output[0], num_outputs, NULL);
+			num_outputs = _mixers->mix(&_outputs.output[0], num_outputs);
 			_outputs.noutputs = num_outputs;
 			_outputs.timestamp = hrt_absolute_time();
 
@@ -738,16 +736,14 @@ TAP_ESC::cycle()
 			motor_out[7] = RPMSTOPPED;
 
 		} else if (num_outputs == 4) {
-
 			motor_out[0] = _outputs.output[2];
 			motor_out[2] = _outputs.output[0];
 			motor_out[1] = _outputs.output[1];
 			motor_out[3] = _outputs.output[3];
 
 		} else {
-
 			// Use the system defaults
-			for (int i = 0; i < esc_count; ++i) {
+			for (unsigned i = 0; i < esc_count; ++i) {
 				motor_out[i] = _outputs.output[i];
 			}
 		}

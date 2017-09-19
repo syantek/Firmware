@@ -30,6 +30,7 @@ set(CONFIG_SHMEM "1")
 set(config_module_list
 	drivers/device
 	drivers/blinkm
+	drivers/linux_sbus
 	drivers/pwm_out_sim
 	drivers/rgbled
 	drivers/led
@@ -52,7 +53,7 @@ set(config_module_list
 	modules/mc_pos_control
 	modules/mc_att_control
 
-	modules/param
+	modules/systemlib/param
 	modules/systemlib
 	modules/systemlib/mixer
 	modules/uORB
@@ -64,6 +65,9 @@ set(config_module_list
 	modules/simulator
 	modules/commander
 	modules/navigator
+
+	# micro RTPS
+	modules/micrortps_bridge/micrortps_client
 
 	lib/controllib
 	lib/mathlib
@@ -78,8 +82,17 @@ set(config_module_list
 	lib/tailsitter_recovery
 	lib/version
 	lib/DriverFramework/framework
+	lib/micro-CDR
 
 	platforms/common
 	platforms/posix/px4_layer
 	platforms/posix/work_queue
 	)
+
+set(config_rtps_send_topics
+        sensor_baro
+        )
+
+set(config_rtps_receive_topics
+        sensor_combined
+        )

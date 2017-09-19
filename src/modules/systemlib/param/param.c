@@ -45,6 +45,7 @@
 #include <px4_defines.h>
 #include <px4_posix.h>
 #include <px4_config.h>
+#include <px4_shutdown.h>
 #include <string.h>
 #include <stdbool.h>
 #include <float.h>
@@ -64,7 +65,7 @@
 #include "systemlib/uthash/utarray.h"
 #include "systemlib/bson/tinybson.h"
 
-//#define PARAM_NO_ORB ///< if defined, avoid uorb depenency. This disables publication of parameter_update on param change
+//#define PARAM_NO_ORB ///< if defined, avoid uorb dependency. This disables publication of parameter_update on param change
 //#define PARAM_NO_AUTOSAVE ///< if defined, do not autosave (avoids LP work queue dependency)
 
 #if !defined(PARAM_NO_ORB)
@@ -83,7 +84,6 @@
 
 static const char *param_default_file = PX4_ROOTFSDIR"/eeprom/parameters";
 static char *param_user_file = NULL;
-
 
 #if 0
 # define debug(fmt, args...)		do { warnx(fmt, ##args); } while(0)
@@ -111,15 +111,8 @@ static bool autosave_disabled = false;
 /**
  * Array of static parameter info.
  */
-#ifdef _UNIT_TEST
-extern struct param_info_s	param_array[];
-extern struct param_info_s	*param_info_base;
-extern struct param_info_s	*param_info_limit;
-#define param_info_count	(param_info_limit - param_info_base)
-#else
 static const struct param_info_s *param_info_base = (const struct param_info_s *) &px4_parameters;
-#define	param_info_count		px4_parameters.param_count
-#endif /* _UNIT_TEST */
+#define	param_info_count px4_parameters.param_count
 
 /**
  * Storage for modified parameters.
@@ -174,9 +167,14 @@ static param_t param_find_internal(const char *name, bool notification);
 // the following implements an RW-lock using 2 semaphores (used as mutexes). It gives
 // priority to readers, meaning a writer could suffer from starvation, but in our use-case
 // we only have short periods of reads and writes are rare.
-static px4_sem_t param_sem; ///< this protects against concurrent access to param_values and param save
+static px4_sem_t param_sem; ///< this protects against concurrent access to param_values
 static int reader_lock_holders = 0;
 static px4_sem_t reader_lock_holders_lock; ///< this protects against concurrent access to reader_lock_holders
+
+static px4_sem_t param_sem_save; ///< this protects against concurrent param saves (file or flash access).
+///< we use a separate lock to allow concurrent param reads and saves.
+///< a param_set could still be blocked by a param save, because it
+///< needs to take the reader lock
 
 /** lock the parameter store for read access */
 static void
@@ -235,6 +233,7 @@ void
 param_init(void)
 {
 	px4_sem_init(&param_sem, 0, 1);
+	px4_sem_init(&param_sem_save, 0, 1);
 	px4_sem_init(&reader_lock_holders_lock, 0, 1);
 }
 
@@ -727,7 +726,14 @@ param_set_internal(param_t param, const void *val, bool mark_saved, bool notify_
 
 		case PARAM_TYPE_STRUCT ... PARAM_TYPE_STRUCT_MAX:
 			if (s->val.p == NULL) {
-				s->val.p = malloc(param_size(param));
+				size_t psize = param_size(param);
+
+				if (psize > 0) {
+					s->val.p = malloc(psize);
+
+				} else {
+					s->val.p = NULL;
+				}
 
 				if (s->val.p == NULL) {
 					debug("failed to allocate parameter storage");
@@ -947,6 +953,10 @@ param_save_default(void)
 	while (res != OK && attempts > 0) {
 		res = param_export(fd, false);
 		attempts--;
+
+		if (res != OK) {
+			lseek(fd, 0, SEEK_SET); // jump back to the beginning of the file
+		}
 	}
 
 	if (res != OK) {
@@ -1004,7 +1014,16 @@ param_export(int fd, bool only_unsaved)
 	struct bson_encoder_s encoder;
 	int	result = -1;
 
-	param_lock_writer();
+	int shutdown_lock_ret = px4_shutdown_lock();
+
+	if (shutdown_lock_ret) {
+		PX4_ERR("px4_shutdown_lock() failed (%i)", shutdown_lock_ret);
+	}
+
+	// take the file lock
+	do {} while (px4_sem_wait(&param_sem_save) != 0);
+
+	param_lock_reader();
 
 	bson_encoder_init_file(&encoder, fd);
 
@@ -1089,10 +1108,17 @@ param_export(int fd, bool only_unsaved)
 	result = 0;
 
 out:
-	param_unlock_writer();
 
 	if (result == 0) {
-		result = bson_encoder_fini(&encoder);
+		result = bson_encoder_fini(&encoder); // this will call fsync
+	}
+
+	param_unlock_reader();
+
+	px4_sem_post(&param_sem_save);
+
+	if (shutdown_lock_ret == 0) {
+		px4_shutdown_unlock();
 	}
 
 	return result;
@@ -1138,7 +1164,8 @@ param_import_callback(bson_decoder_t decoder, void *private, bson_node_t node)
 	switch (node->type) {
 	case BSON_INT32:
 		if (param_type(param) != PARAM_TYPE_INT32) {
-			debug("unexpected type for '%s", node->name);
+			PX4_WARN("unexpected type for %s", node->name);
+			result = 1; // just skip this entry
 			goto out;
 		}
 
@@ -1148,7 +1175,8 @@ param_import_callback(bson_decoder_t decoder, void *private, bson_node_t node)
 
 	case BSON_DOUBLE:
 		if (param_type(param) != PARAM_TYPE_FLOAT) {
-			debug("unexpected type for '%s", node->name);
+			PX4_WARN("unexpected type for %s", node->name);
+			result = 1; // just skip this entry
 			goto out;
 		}
 
@@ -1158,17 +1186,26 @@ param_import_callback(bson_decoder_t decoder, void *private, bson_node_t node)
 
 	case BSON_BINDATA:
 		if (node->subtype != BSON_BIN_BINARY) {
-			debug("unexpected subtype for '%s", node->name);
+			PX4_WARN("unexpected subtype for %s", node->name);
+			result = 1; // just skip this entry
 			goto out;
 		}
 
 		if (bson_decoder_data_pending(decoder) != param_size(param)) {
-			debug("bad size for '%s'", node->name);
+			PX4_WARN("bad size for '%s'", node->name);
+			result = 1; // just skip this entry
 			goto out;
 		}
 
 		/* XXX check actual file data size? */
-		tmp = malloc(param_size(param));
+		size_t psize = param_size(param);
+
+		if (psize > 0) {
+			tmp = malloc(psize);
+
+		} else {
+			tmp = NULL;
+		}
 
 		if (tmp == NULL) {
 			debug("failed allocating for '%s'", node->name);

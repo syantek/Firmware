@@ -10,6 +10,12 @@ set(config_module_list
 	drivers/pwm_out_sim
 	drivers/vmount
 	drivers/linux_gpio
+	drivers/airspeed
+	drivers/ets_airspeed
+	drivers/ms4525_airspeed
+	drivers/ms5525_airspeed
+	drivers/sdp3x_airspeed
+
 	modules/sensors
 	platforms/posix/drivers/accelsim
 	platforms/posix/drivers/adcsim
@@ -48,10 +54,9 @@ set(config_module_list
 	#drivers/test_ppm
 	lib/rc/rc_tests
 	modules/commander/commander_tests
-	modules/controllib_test
+	lib/controllib/controllib_test
 	modules/mavlink/mavlink_tests
 	modules/mc_pos_control/mc_pos_control_tests
-	modules/unit_test
 	modules/uORB/uORB_tests
 	systemcmds/tests
 
@@ -74,7 +79,6 @@ set(config_module_list
 	#
 	modules/attitude_estimator_q
 	modules/ekf2
-	modules/ekf2_replay
 	modules/local_position_estimator
 	modules/position_estimator_inav
 
@@ -83,6 +87,8 @@ set(config_module_list
 	#
 	modules/fw_att_control
 	modules/fw_pos_control_l1
+	modules/gnd_att_control
+	modules/gnd_pos_control
 	modules/mc_att_control
 	modules/mc_pos_control
 	modules/vtol_att_control
@@ -97,10 +103,13 @@ set(config_module_list
 	# Library modules
 	#
 	modules/dataman
-	modules/param
+	modules/systemlib/param
 	modules/systemlib
 	modules/systemlib/mixer
 	modules/uORB
+
+        # micro RTPS
+        modules/micrortps_bridge/micrortps_client
 
 	#
 	# Libraries
@@ -140,6 +149,11 @@ set(config_module_list
 	examples/rover_steering_control
 
 	#
+	# HippoCampus example (AUV from TUHH)
+	#
+	examples/uuv_example_app
+
+	#
 	# Segway
 	#
 	examples/segway
@@ -169,11 +183,22 @@ set(config_module_list
 
 	# EKF
 	examples/ekf_att_pos_estimator
+
+	# micro-RTPS
+	lib/micro-CDR
 )
 
 set(config_extra_builtin_cmds
 	serdis
 	sercon
+	)
+
+set(config_rtps_send_topics
+	sensor_baro
+	)
+
+set(config_rtps_receive_topics
+	sensor_combined
 	)
 
 # Default config_sitl_rcS_dir (posix_sitl_default), this is overwritten later

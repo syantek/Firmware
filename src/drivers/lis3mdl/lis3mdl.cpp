@@ -166,7 +166,7 @@ private:
 
 	enum Rotation		_rotation;
 
-	struct mag_report	_last_report;           /**< used for info() */
+	struct mag_report	_last_report {};          /**< used for info() */
 
 	uint8_t			_range_bits;
 	uint8_t			_cntl_reg1;
@@ -341,7 +341,6 @@ LIS3MDL::LIS3MDL(device::Device *interface, const char *path, enum Rotation rota
 	_sensor_ok(false),
 	_calibrated(false),
 	_rotation(rotation),
-	_last_report{0},
 	_range_bits(0),
 	_cntl_reg1(0),
 	_cntl_reg4(0),
@@ -911,6 +910,9 @@ LIS3MDL::collect()
 	/* this should be fairly close to the end of the measurement, so the best approximation of the time */
 	new_report.timestamp = hrt_absolute_time();
 	new_report.error_count = perf_event_count(_comms_errors);
+	new_report.range_ga = _range_ga;
+	new_report.scaling = _range_scale;
+	new_report.device_id = _device_id.devid;
 
 	/*
 	 * @note  We could read the status register here, which could tell us that
@@ -942,6 +944,7 @@ LIS3MDL::collect()
 
 	unsigned dummy;
 	sensor_is_onboard = !_interface->ioctl(MAGIOCGEXTERNAL, dummy);
+	new_report.is_external = !sensor_is_onboard;
 
 	/*
 	 * RAW outputs

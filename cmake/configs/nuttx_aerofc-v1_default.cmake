@@ -24,8 +24,6 @@ set(config_module_list
 	drivers/ll40ls
 	drivers/aerofc_adc
 	modules/sensors
-	# dummy tone alarm
-	modules/dummy
 
 	#
 	# System commands
@@ -67,8 +65,10 @@ set(config_module_list
 	#
 	# Vehicle Control
 	#
-	modules/fw_pos_control_l1
 	modules/fw_att_control
+	modules/fw_pos_control_l1
+	modules/gnd_att_control
+	modules/gnd_pos_control
 	modules/mc_att_control
 	modules/mc_pos_control
 	modules/vtol_att_control
@@ -81,7 +81,7 @@ set(config_module_list
 	#
 	# Library modules
 	#
-	modules/param
+	modules/systemlib/param
 	modules/systemlib
 	modules/systemlib/mixer
 	modules/uORB
@@ -106,6 +106,7 @@ set(config_module_list
 	lib/DriverFramework/framework
 	lib/rc
 	platforms/nuttx
+	lib/micro-CDR
 
 	# had to add for cmake, not sure why wasn't in original config
 	platforms/common
@@ -116,10 +117,4 @@ set(config_extra_builtin_cmds
 	)
 
 set(config_io_board
-	)
-
-set(config_extra_libs
-	)
-
-set(config_io_extra_libs
 	)

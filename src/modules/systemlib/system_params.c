@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2013-2015 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2013-2017 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -65,16 +65,17 @@ PARAM_DEFINE_INT32(SYS_AUTOSTART, 0);
 PARAM_DEFINE_INT32(SYS_AUTOCONFIG, 0);
 
 /**
- * Set usage of IO board
+ * Enable HITL mode on next boot
  *
- * Can be used to use a standard startup script but with a FMU only set-up. Set to 0 to force the FMU only set-up.
+ * While enabled the system will boot in HITL mode and not enable all sensors and checks.
+ * When disabled the same vehicle can be normally flown outdoors.
  *
  * @boolean
- * @min 0
- * @max 1
+ * @reboot_required true
+ *
  * @group System
  */
-PARAM_DEFINE_INT32(SYS_USE_IO, 1);
+PARAM_DEFINE_INT32(SYS_HITL, 0);
 
 /**
  * Set restart type

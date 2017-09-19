@@ -1,3 +1,6 @@
+
+include(common/px4_upload)
+
 px4_nuttx_generate_builtin_commands(
 	OUT builtin_commands.c
 	MODULE_LIST
@@ -66,7 +69,6 @@ target_link_libraries(firmware_nuttx
 	${startup_libs}
 	${module_libraries}
 	${df_driver_libs}
-	${config_extra_libs}
 	${nuttx_bootloader_wrapers}
 	${link_libs}
 	-Wl,--end-group)

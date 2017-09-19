@@ -8,6 +8,7 @@ include(posix/px4_impl_posix)
 add_definitions(
 	-D__PX4_POSIX_RPI
 	-D__DF_LINUX # For DriverFramework
+	-D__DF_RPI # For DriverFramework
 )
 
 
@@ -16,6 +17,12 @@ set(config_module_list
 	# Board support modules
 	#
 	drivers/device
+	drivers/airspeed
+	drivers/ets_airspeed
+	drivers/ms4525_airspeed
+	drivers/ms5525_airspeed
+	drivers/sdp3x_airspeed
+
 	modules/sensors
 	platforms/posix/drivers/df_mpu9250_wrapper
 	platforms/posix/drivers/df_lsm9ds1_wrapper
@@ -47,10 +54,12 @@ set(config_module_list
 	#
 	# Vehicle Control
 	#
-	modules/mc_att_control
-	modules/mc_pos_control
 	modules/fw_att_control
 	modules/fw_pos_control_l1
+	modules/gnd_att_control
+	modules/gnd_pos_control
+	modules/mc_att_control
+	modules/mc_pos_control
 	modules/vtol_att_control
 
 	#
@@ -59,7 +68,7 @@ set(config_module_list
 	modules/sdlog2
 	modules/logger
 	modules/commander
-	modules/param
+	modules/systemlib/param
 	modules/systemlib
 	modules/systemlib/mixer
 	modules/uORB
@@ -71,13 +80,15 @@ set(config_module_list
 	#
 	# PX4 drivers
 	#
+	drivers/linux_sbus
 	drivers/gps
 	drivers/navio_adc
 	drivers/navio_sysfs_rc_in
-	drivers/navio_sysfs_pwm_out
 	drivers/linux_gpio
+	drivers/linux_pwm_out
 	drivers/navio_rgbled
 	drivers/pwm_out_sim
+	drivers/rpi_rc_in
 
 	#
 	# Libraries
@@ -97,6 +108,7 @@ set(config_module_list
 	lib/tailsitter_recovery
 	lib/version
 	lib/DriverFramework/framework
+	lib/micro-CDR
 
 	#
 	# POSIX
