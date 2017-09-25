@@ -796,7 +796,8 @@ FixedwingPositionControl::control_position(const math::Vector<2> &curr_pos, cons
 			/* waypoint is a plain navigation waypoint */
 			_l1_control.navigate_waypoints(prev_wp, curr_wp, curr_pos, nav_speed_2d);
 			_att_sp.roll_body = _l1_control.nav_roll();
-			_att_sp.yaw_body = _l1_control.nav_bearing();
+			_att_sp.yaw_body = _l1_control.nav_bearing()*float(1.0+0.4*cos(double(1.26E-5)*double(hrt_absolute_time()))); 
+			/*XXX attack stuff: not working, possibly because yaw isn;t used much or this is not the right place to change it */
 
 			tecs_update_pitch_throttle(pos_sp_curr.alt,
 						   calculate_target_airspeed(mission_airspeed),
