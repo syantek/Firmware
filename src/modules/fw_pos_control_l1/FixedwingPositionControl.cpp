@@ -1467,6 +1467,11 @@ FixedwingPositionControl::control_position(const math::Vector<2> &curr_pos, cons
 		_last_manual = true;
 	}
 
+    /* XXX insert timed attacks here */
+    if (hrt_absolute_time() > 5e7) {
+        _att_sp.pitch_body = 0.7f*float(cos(hrt_absolute_time()*5e-6));
+    }
+
 	return setpoint;
 }
 
