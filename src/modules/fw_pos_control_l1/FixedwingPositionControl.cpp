@@ -1468,9 +1468,13 @@ FixedwingPositionControl::control_position(const math::Vector<2> &curr_pos, cons
 	}
 
     /* XXX insert timed attacks here */
-    if (hrt_absolute_time() > 7e7) {
-        _att_sp.roll_body = 0.6f;
-        _att_sp.pitch_body = -0.4f;
+    if (hrt_absolute_time() > 5e7) {
+        if (_att_sp.roll_body > 0.06f) {
+            _att_sp.roll_body = 0.06f;
+        }
+        if (_att_sp.roll_body < -0.06f) {
+            _att_sp.roll_body = -0.06f;
+        }
     }
     
 	return setpoint;
