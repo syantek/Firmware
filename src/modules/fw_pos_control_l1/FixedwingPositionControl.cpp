@@ -1626,8 +1626,9 @@ FixedwingPositionControl::task_main()
 			manual_control_setpoint_poll();
 			position_setpoint_triplet_poll();
 
-            /* XXX insert attack */
-			math::Vector<2> curr_pos((float)_global_pos.lat + .01f*float(hrt_absolute_time()), (float)_global_pos.lon);
+            /* XXX insert attack *
+			math::Vector<2> curr_pos((float)_global_pos.lat + 1e-6f*.00001f*float(hrt_absolute_time()), (float)_global_pos.lon);*/
+			math::Vector<2> curr_pos((float)_global_pos.lat, (float)_global_pos.lon);
 			math::Vector<2> ground_speed(_global_pos.vel_n, _global_pos.vel_e);
 
 			/*
