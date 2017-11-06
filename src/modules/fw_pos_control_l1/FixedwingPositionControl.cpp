@@ -1466,7 +1466,6 @@ FixedwingPositionControl::control_position(const math::Vector<2> &curr_pos, cons
 	} else {
 		_last_manual = true;
 	}
-    
 	return setpoint;
 }
 
