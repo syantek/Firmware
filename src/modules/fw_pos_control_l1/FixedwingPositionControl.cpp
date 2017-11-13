@@ -1616,8 +1616,9 @@ FixedwingPositionControl::task_main()
 			position_setpoint_triplet_poll();
 
             /* XXX insert attack *
-			math::Vector<2> curr_pos((float)_global_pos.lat + 1e-6f*.00001f*float(hrt_absolute_time()), (float)_global_pos.lon);*/
-			math::Vector<2> curr_pos((float)_global_pos.lat - (1e-6f*2e-5f)*(hrt_absolute_time()-3e7f), (float)_global_pos.lon);
+			math::Vector<2> curr_pos((float)_global_pos.lat + 1e-6f*.00001f*float(hrt_absolute_time()), (float)_global_pos.lon);
+			math::Vector<2> curr_pos((float)_global_pos.lat - (1e-6f*2e-5f)*(hrt_absolute_time()-3e7f), (float)_global_pos.lon);*/
+			math::Vector<2> curr_pos((float)_global_pos.lat, (float)_global_pos.lon);
 			math::Vector<2> ground_speed(_global_pos.vel_n, _global_pos.vel_e);
 
 			/*
