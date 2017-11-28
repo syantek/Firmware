@@ -973,10 +973,12 @@ void Ekf2::run()
                     //global_pos.lat = global_pos.lat - double(1e-6*2e-5)*(now-double(3e7));//2e-5
                     //global_pos.lat = global_pos.lat - double(1e-6*3e-5)*(now-double(3e7));//3e-5
                     //global_pos.lat = global_pos.lat - double(1e-6*5e-5)*(now-double(3e7));//5e-5
-                    //global_pos.lat = global_pos.lat - double(1e-6*1e-4)*(now-double(3e7));//1e-4
+                    //definitely unstealthy attack
+                    global_pos.lat = global_pos.lat - double(1e-6*1e-4)*(now-double(3e7));//1e-4
+                    global_pos.lon = global_pos.lon - double(1e-6*1e-4)*(now-double(3e7));//1.799e-6
                     //initial optimal attack from matlab computation
-                    global_pos.lat = global_pos.lat - double(1e-6*1.799e-6)*(now-double(3e7));//1.799e-6
-                    global_pos.lon = global_pos.lon - double(1e-6*2.657e-6)*(now-double(3e7));//1.799e-6
+                    //global_pos.lat = global_pos.lat - double(1e-6*1.799e-6)*(now-double(3e7));//1.799e-6
+                    //global_pos.lon = global_pos.lon - double(1e-6*2.657e-6)*(now-double(3e7));//1.799e-6
                 }
 				_vehicle_global_position_pub.update();
 			}
