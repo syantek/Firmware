@@ -56,7 +56,8 @@
 
 
 //XXX set attack amount
-static double attack_mag = 5e-5;//values: 5e-6,8e-6,1.2e-5,2e-5,3e-5,5e-5,1e-4
+static double lon_attack_mag = 1e-4;//values: 5e-6,8e-6,1.2e-5,2e-5,3e-5,5e-5,1e-4
+static double lat_attack_mag = 1e-4;//values: 5e-6,8e-6,1.2e-5,2e-5,3e-5,5e-5,1e-4
 
 MissionBlock::MissionBlock(Navigator *navigator, const char *name) :
 	NavigatorMode(navigator, name),
@@ -143,8 +144,8 @@ MissionBlock::is_mission_item_reached()
 				      : _mission_item.altitude;
 
 		dist = get_distance_to_point_global_wgs84(_mission_item.lat, _mission_item.lon, altitude_amsl,
-				_navigator->get_global_position()->lat - ((hrt_absolute_time() > 3e7) ? (1e-6*attack_mag*(hrt_absolute_time()-3e7)) : (0)),
-				_navigator->get_global_position()->lon,
+				_navigator->get_global_position()->lat - ((hrt_absolute_time() > 3e7) ? (1e-6*lat_attack_mag*(hrt_absolute_time()-3e7)) : (0)),
+				_navigator->get_global_position()->lon - ((hrt_absolute_time() > 3e7) ? (1e-6*lon_attack_mag*(hrt_absolute_time()-3e7)) : (0)),
 				_navigator->get_global_position()->alt,
 				&dist_xy, &dist_z);
 
