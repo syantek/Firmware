@@ -724,7 +724,16 @@ void Ekf2::run()
 		if (gps_updated) {
 			struct gps_message gps_msg;
 			gps_msg.time_usec = gps.timestamp;
-			gps_msg.lat = gps.lat;
+			//XXX lat attacks
+			// slow ramp:
+			//gps_msg.lat = gps.lat + 1e-4*hrt_absolute_time();
+			// fast ramp:
+			gps_msg.lat = gps.lat + 2e-4*hrt_absolute_time();
+			// sudden jump:
+			/*gps_msg.lat = gps.lat;
+			if (hrt_absolute_time() > 4e7) {
+			    gps_msg.lat = gps.lat + 1e-2*4e7;
+		    }*/
 			gps_msg.lon = gps.lon;
 			gps_msg.alt = gps.alt;
 			gps_msg.fix_type = gps.fix_type;
