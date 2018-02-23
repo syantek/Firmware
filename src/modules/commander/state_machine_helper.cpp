@@ -206,7 +206,7 @@ transition_result_t arming_state_transition(vehicle_status_s *status,
 
 		/* enforce lockdown in HIL */
 		if (status->hil_state == vehicle_status_s::HIL_STATE_ON) {
-			armed->lockdown = true;
+			//armed->lockdown = true;//XXX comment out to keep actuators on for HIL
 			prearm_ret = OK;
 			status_flags->condition_system_sensors_initialized = true;
 

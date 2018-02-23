@@ -506,14 +506,14 @@ then
 		fi
 		unset MK_MODE
 
-		if [ $OUTPUT_MODE == hil ]
-		then
-			if pwm_out_sim mode_pwm16
-			then
-			else
-				tone_alarm $TUNE_ERR
-			fi
-		fi
+		#if [ $OUTPUT_MODE == hil ]
+		#then
+		#	if pwm_out_sim mode_pwm16
+		#	then
+		#	else
+		#		tone_alarm $TUNE_ERR
+		#	fi
+		#fi
 
 		#
 		# Start IO or FMU for RC PPM input if needed
