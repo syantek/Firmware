@@ -337,7 +337,7 @@ then
 
 	if [ $HIL == yes ]
 	then
-		set OUTPUT_MODE hil
+		#set OUTPUT_MODE hil
 		if ver hwcmp PX4FMU_V1
 		then
 			set FMU_MODE serial
