@@ -14,3 +14,5 @@ uint8 MAV_DISTANCE_SENSOR_INFRARED = 2
 uint8 id			# Onboard ID of the sensor
 
 uint8 orientation		# Direction the sensor faces from MAV_SENSOR_ORIENTATION enum
+
+# TOPICS distance_sensor distance_sensor_fdi

@@ -11,3 +11,5 @@ int16 y_raw
 int16 z_raw
 
 uint32 device_id
+
+# TOPICS sensor_mag sensor_mag_fdi

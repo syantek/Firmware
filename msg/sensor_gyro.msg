@@ -16,3 +16,5 @@ int16 z_raw
 int16 temperature_raw
 
 uint32 device_id
+
+# TOPICS sensor_gyro sensor_gyro_fdi

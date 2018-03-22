@@ -11,3 +11,5 @@ float32 landing_horizontal_slope_displacement
 float32 landing_slope_angle_rad
 float32 landing_flare_length
 bool abort_landing
+
+# TOPICS fw_pos_ctrl_status fw_pos_ctrl_status_fdi

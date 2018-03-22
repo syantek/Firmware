@@ -33,4 +33,4 @@ bool apply_flaps
 float32 landing_gear
 
 # WAS vehicle_attitude_setpoint mc_virtual_attitude_setpoint fw_virtual_attitude_setpoint
-# TOPICS vehicle_attitude_setpoint
+# TOPICS vehicle_attitude_setpoint vehicle_attitude_setpoint_fdi
