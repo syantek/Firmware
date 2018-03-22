@@ -33,6 +33,7 @@ set(config_module_list
 	systemcmds/top
 	systemcmds/motor_ramp
 
+    modules/attack
 	modules/attitude_estimator_q
 	modules/commander
 	modules/dataman

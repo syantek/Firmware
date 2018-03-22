@@ -39,11 +39,13 @@
  * @author Scott Yantek
  */
 
+#include <math.h>
 #include <px4_posix.h>
 //#include <px4_time.h>
 #include <poll.h>
 #include <px4_log.h>
 #include <uORB/topics/sensor_combined.h>
+#include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <drivers/drv_hrt.h>
 
 extern "C" __EXPORT int attack_main(int argc, char *argv[]);
@@ -95,8 +97,10 @@ private:
     int	_control_task = -1;		// task handle for task
     bool _task_should_exit = false;
     bool _attack_active = false;
+    int _start;
     
     orb_advert_t _sensors_fdi_pub;
+    orb_advert_t _vehicle_attitude_setpoint_fdi_pub;
     
     // parameters
     struct {
@@ -138,10 +142,14 @@ void Attack::task_main()
     int params_sub = orb_subscribe(ORB_ID(parameter_update));
     
     //set up publishers for relevant topics (all the attack stuff)
-    struct sensor_combined_s sensors_fdi;
+    /*struct sensor_combined_s sensors_fdi;
     memset(&sensors_fdi, 0, sizeof(sensors_fdi));
     _sensors_fdi_pub = orb_advertise(ORB_ID(sensor_combined_fdi),
-            &sensors_fdi);
+            &sensors_fdi);*/
+    struct vehicle_attitude_setpoint_s vehicle_attitude_setpoint_fdi_fd;
+    memset(&vehicle_attitude_setpoint_fdi_fd, 0, sizeof(vehicle_attitude_setpoint_fdi_fd));
+    _vehicle_attitude_setpoint_fdi_pub = orb_advertise(ORB_ID(vehicle_attitude_setpoint_fdi),
+            &vehicle_attitude_setpoint_fdi_fd);
     
     // initialize current time
     //hrt_abstime now = 0;
@@ -165,11 +173,25 @@ void Attack::task_main()
     while (!_task_should_exit) {// main loop
         // check master attack switch (if it's off, don't do anything)
         param_get(_parameter_handles.attack_switch_h, &(_parameters.attack_switch));
+        if ((_parameters.attack_switch == 1478) & (!_attack_active)) {
+            _start = hrt_absolute_time();
+        }
+        
         _attack_active = (_parameters.attack_switch == 1478);
         
         if (_attack_active) {
             // check which attack types are active
             param_get(_parameter_handles.attack_type_h, &(_parameters.attack_type));
+            
+            // pitch oscillation attack
+            if (_parameters.attack_type == 1) {
+                //calculate what to inject
+                vehicle_attitude_setpoint_fdi_fd.pitch_body = 
+                        0.7f*float(cos((hrt_absolute_time()-_start)*5e-6));
+                //publish the attack
+                orb_publish(ORB_ID(vehicle_attitude_setpoint_fdi), _vehicle_attitude_setpoint_fdi_pub, &vehicle_attitude_setpoint_fdi_fd);
+                //TODO make fw_pos_control subscribe to the attack and add it to it's publication
+            }
         }
         
         /*int ret = px4_poll(fds, sizeof(fds) / sizeof(fds[0]), 1000);

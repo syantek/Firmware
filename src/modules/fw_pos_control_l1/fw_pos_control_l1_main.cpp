@@ -170,6 +170,7 @@ private:
 	int		_params_sub;			/**< notification of parameter updates */
 	int		_manual_control_sub;		/**< notification of manual control updates */
 	int		_sensor_combined_sub;		/**< for body frame accelerations */
+	int		_att_sp_fdi_sub;		/**< for control attack injection */
 
 	orb_advert_t	_attitude_sp_pub;		/**< attitude setpoint */
 	orb_advert_t	_tecs_status_pub;		/**< TECS status publication */
@@ -188,6 +189,7 @@ private:
 	struct vehicle_global_position_s		_global_pos;			/**< global vehicle position */
 	struct position_setpoint_triplet_s		_pos_sp_triplet;		/**< triplet of mission items */
 	struct sensor_combined_s			_sensor_combined;		/**< for body frame accelerations */
+	struct vehicle_attitude_setpoint_s  _att_sp_fdi;		/**< for control attack injection */
 
 	perf_counter_t	_loop_perf;			/**< loop performance counter */
 
@@ -403,6 +405,11 @@ private:
 	 */
 	void		vehicle_status_poll();
 
+    /**
+     * Check for attack updates
+     */
+    void        vehicle_attitude_setpoint_fdi_poll();
+
 	/**
 	 * Check for changes in vehicle land detected.
 	 */
@@ -549,6 +556,7 @@ FixedwingPositionControl::FixedwingPositionControl() :
 	_params_sub(-1),
 	_manual_control_sub(-1),
 	_sensor_combined_sub(-1),
+	_att_sp_fdi_sub(-1),
 
 	/* publications */
 	_attitude_sp_pub(nullptr),
@@ -570,6 +578,7 @@ FixedwingPositionControl::FixedwingPositionControl() :
 	_global_pos(),
 	_pos_sp_triplet(),
 	_sensor_combined(),
+    _att_sp_fdi(),
 
 	/* performance counters */
 	_loop_perf(perf_alloc(PC_ELAPSED, "fw l1 control")),
@@ -877,6 +886,17 @@ FixedwingPositionControl::vehicle_status_poll()
 			}
 		}
 	}
+}
+
+void FixedwingPositionControl::vehicle_attitude_setpoint_fdi_poll()
+{
+    bool updated;
+    
+    orb_check(_att_sp_fdi_sub, &updated);
+    
+    if (updated) {
+        orb_copy(ORB_ID(vehicle_attitude_setpoint_fdi), _att_sp_fdi_sub, &_att_sp_fdi);
+    }
 }
 
 void
@@ -2216,6 +2236,7 @@ FixedwingPositionControl::task_main()
 	_vehicle_land_detected_sub = orb_subscribe(ORB_ID(vehicle_land_detected));
 	_params_sub = orb_subscribe(ORB_ID(parameter_update));
 	_manual_control_sub = orb_subscribe(ORB_ID(manual_control_setpoint));
+	_att_sp_fdi_sub = orb_subscribe(ORB_ID(vehicle_attitude_setpoint_fdi));
 
 	/* rate limit control mode updates to 5Hz */
 	orb_set_interval(_control_mode_sub, 200);
@@ -2338,6 +2359,8 @@ FixedwingPositionControl::task_main()
 					_att_sp.pitch_body = math::constrain(_att_sp.pitch_body, -_parameters.man_pitch_max_rad, _parameters.man_pitch_max_rad);
 				}
 
+				//inject attack
+				_att_sp.pitch_body += _att_sp_fdi.pitch_body;
 				/* lazily publish the setpoint only once available */
 				if (_attitude_sp_pub != nullptr) {
 					/* publish the attitude setpoint */

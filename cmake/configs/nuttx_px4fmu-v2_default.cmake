@@ -85,6 +85,7 @@ set(config_module_list
 	#
 	# General system control
 	#
+	modules/attack
 	modules/commander
 	modules/load_mon
 	modules/navigator
