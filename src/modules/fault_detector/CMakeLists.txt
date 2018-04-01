@@ -31,7 +31,7 @@
 #
 #############################################################################
 px4_add_module(
-	MODULE modules__detector
+	MODULE modules__fault_detector
 	MAIN detector
 	COMPILE_FLAGS
 	STACK_MAIN 2500

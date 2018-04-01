@@ -50,7 +50,7 @@
 #include <uORB/topics/fault_detection.h>
 #include <drivers/drv_hrt.h>
 
-extern "C" __EXPORT int fault_detection_main(int argc, char *argv[]);
+extern "C" __EXPORT int detector_main(int argc, char *argv[]);
 
 class Detector;
 
@@ -105,12 +105,12 @@ private:
     
     // parameters
     struct {
-        int detector_threshold;
+        int detect_threshold;
     } _parameters;
     
     // parameter handles
     struct {
-        param_t detector_threshold_h;
+        param_t detect_threshold_h;
     } _parameter_handles;
 };
 
@@ -126,7 +126,7 @@ Detector::~Detector()
 
 void Detector::print_status()
 {
-    if (_Detector_active) {
+    if (_detector_active) {
         PX4_INFO("Detector active");
     } else {
         PX4_INFO("Detector NOT active");
@@ -161,42 +161,95 @@ void Detector::task_main()
     ekf2_innovations_s innov = {};
     
     //get the parameter handles that matter
-    _parameter_handles.detector_threshold_h = param_find("DETECTOR_THRESHOLD");
+    _parameter_handles.detect_threshold_h = param_find("DETECT_THRESHOLD");
+    
+    // set active flag true
+    _detector_active = true;
     
     while (!_task_should_exit) {// main loop
         // check for change to detector threshold
-        param_get(_parameter_handles.detector_threshold_h, &(_parameters.detector_threshold));
+        param_get(_parameter_handles.detect_threshold_h, &(_parameters.detect_threshold));
         
         // Get innovation information
-        orb_copy(ORB_ID(ekf2_innovation), innov_sub, &innov);
+        orb_copy(ORB_ID(ekf2_innovations), innov_sub, &innov);
         
         // Perform detector calculations
         
         residual_power = 0;
         //TODO change this in the future for non-diagonal innovation covariance
-        residual_power += innov.vel_pos_innov[0]*innov.vel_pos_innov[0]/innov.vel_pos_innov_var[0];
-        residual_power += innov.vel_pos_innov[1]*innov.vel_pos_innov[1]/innov.vel_pos_innov_var[1];
-        residual_power += innov.vel_pos_innov[2]*innov.vel_pos_innov[2]/innov.vel_pos_innov_var[2];
-        residual_power += innov.vel_pos_innov[3]*innov.vel_pos_innov[3]/innov.vel_pos_innov_var[3];
-        residual_power += innov.vel_pos_innov[4]*innov.vel_pos_innov[4]/innov.vel_pos_innov_var[4];
-        residual_power += innov.vel_pos_innov[5]*innov.vel_pos_innov[5]/innov.vel_pos_innov_var[5];
-        residual_power += innov.mag_innov[0]*innov.mag_innov[0]/innov.mag_innov_var[0];
-        residual_power += innov.mag_innov[1]*innov.mag_innov[0]/innov.mag_innov_var[1];
-        residual_power += innov.mag_innov[2]*innov.mag_innov[0]/innov.mag_innov_var[2];
-        residual_power += innov.heading_innov*innov.heading_innov/innov.heading_innov_var;
-        residual_power += innov.airspeed_innov*airspeed_innov/airspeed_innov_var;
-        residual_power += innov.beta_innov*innov.beta_innov/innov.beta_innov_var;
-        residual_power += innov.flow_innov*innov.flow_innov/innov.flow_innov_var;
-        residual_power += innov.hagl_innov*innov.hagl_innov/innov.hagl_innov_var;
+        // In JMAVSim, only the vel_pos and hagl terms (7 in total) have defined variances
+        if (innov.vel_pos_innov_var[0] > 0) {
+            residual_power += innov.vel_pos_innov[0]*innov.vel_pos_innov[0]/innov.vel_pos_innov_var[0];
+            //PX4_INFO("0");
+        }
+        if (innov.vel_pos_innov_var[1] > 0) {
+            residual_power += innov.vel_pos_innov[1]*innov.vel_pos_innov[1]/innov.vel_pos_innov_var[1];
+            //PX4_INFO("1");
+        }
+        if (innov.vel_pos_innov_var[2] > 0) {
+            residual_power += innov.vel_pos_innov[2]*innov.vel_pos_innov[2]/innov.vel_pos_innov_var[2];
+            //PX4_INFO("2");
+        }
+        if (innov.vel_pos_innov_var[3] > 0) {
+            residual_power += innov.vel_pos_innov[3]*innov.vel_pos_innov[3]/innov.vel_pos_innov_var[3];
+            //PX4_INFO("3");
+        }
+        if (innov.vel_pos_innov_var[4] > 0) {
+            residual_power += innov.vel_pos_innov[4]*innov.vel_pos_innov[4]/innov.vel_pos_innov_var[4];
+            //PX4_INFO("4");
+        }
+        if (innov.vel_pos_innov_var[5] > 0) {
+            residual_power += innov.vel_pos_innov[5]*innov.vel_pos_innov[5]/innov.vel_pos_innov_var[5];
+            //PX4_INFO("5");
+        }
+        if (innov.mag_innov_var[0] > 0) {
+            residual_power += innov.mag_innov[0]*innov.mag_innov[0]/innov.mag_innov_var[0];
+            //PX4_INFO("6");
+        }
+        if (innov.mag_innov_var[1] > 0) {
+            residual_power += innov.mag_innov[1]*innov.mag_innov[0]/innov.mag_innov_var[1];
+            //PX4_INFO("7");
+        }
+        if (innov.mag_innov_var[2] > 0) {
+            residual_power += innov.mag_innov[2]*innov.mag_innov[0]/innov.mag_innov_var[2];
+            //PX4_INFO("8");
+        }
+        if (innov.heading_innov_var > 0) {
+            residual_power += innov.heading_innov*innov.heading_innov/innov.heading_innov_var;
+            //PX4_INFO("9");
+        }
+        if (innov.airspeed_innov_var > 0) {
+            residual_power += innov.airspeed_innov*innov.airspeed_innov/innov.airspeed_innov_var;
+            //PX4_INFO("10");
+        }
+        if (innov.beta_innov_var > 0) {
+            residual_power += innov.beta_innov*innov.beta_innov/innov.beta_innov_var;
+            //PX4_INFO("11");
+        }
         
+        // Flow will likely not be used, so these 2 terms will probably not count
+        if (innov.flow_innov_var[0] > 0) {
+            residual_power += innov.flow_innov[0]*innov.flow_innov[0]/innov.flow_innov_var[0];
+            //PX4_INFO("12");
+        }
+        if (innov.flow_innov_var[1] > 0) {
+            residual_power += innov.flow_innov[1]*innov.flow_innov[1]/innov.flow_innov_var[1];
+            //PX4_INFO("13");
+        }
+        if (innov.hagl_innov_var > 0) {
+            residual_power += innov.hagl_innov*innov.hagl_innov/innov.hagl_innov_var;
+            //PX4_INFO("14");
+        }
+        
+        //PX4_INFO("residual power: %f",(double)residual_power);
         // Raise alarm if threshold is exceeded
-        if (residual_power > _parameters.detector_threshold) {
-            PX4_WARM("Fault Detected!")
+        if (residual_power > _parameters.detect_threshold) {
+            PX4_WARN("Fault Detected!");
         }
         
         // publish detector info
         detector_fd.residual_power = residual_power;
-        detector_fd.detector_threshold = _parameters.detector_threshold
+        detector_fd.detector_threshold = _parameters.detect_threshold;
         orb_publish(ORB_ID(fault_detection), _detector_pub, &detector_fd);
     }
     
@@ -205,7 +258,7 @@ void Detector::task_main()
     orb_unsubscribe(params_sub);
     
     //unadvertise published orb topics
-    orb_unadvertise(_detector_fdi_pub);
+    orb_unadvertise(_detector_pub);
 
 	//clean up the detector instance and reset
 	delete detector::instance;

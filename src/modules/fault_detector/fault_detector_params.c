@@ -41,11 +41,11 @@
 
 
 /**
- * Detection threshold for residual power-based detection
+ * Detection threshold for residual power based detection
  *
  * @group Detector
  * @min 0
  * @max 300
  * @decimal 1
  */
-PARAM_DEFINE_FLOAT(DETECTOR_THRESHOLD, 0);
+PARAM_DEFINE_FLOAT(DETECT_THRESHOLD, 16);

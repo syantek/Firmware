@@ -44,6 +44,7 @@
 
 #include "mavlink_main.h"
 #include "mavlink_messages.h"
+#include <v1.0/custom_messages/mavlink_msg_fault_detection.h>
 
 #include <commander/px4_custom_mode.h>
 #include <drivers/drv_pwm_output.h>
@@ -66,6 +67,7 @@
 #include <uORB/topics/differential_pressure.h>
 #include <uORB/topics/distance_sensor.h>
 #include <uORB/topics/estimator_status.h>
+#include <uORB/topics/fault_detection.h>
 #include <uORB/topics/fw_pos_ctrl_status.h>
 #include <uORB/topics/home_position.h>
 #include <uORB/topics/manual_control_setpoint.h>
@@ -1797,6 +1799,61 @@ protected:
 			mavlink_msg_vibration_send_struct(_mavlink->get_channel(), &msg);
 		}
 	}
+};
+
+class MavlinkStreamFaultDetection : public MavlinkStream //XXX custom class
+{
+public:
+    const char *get_name() const
+    {
+        return MavlinkStreamFaultDetection::get_name_static();
+    }
+    static const char *get_name_static()
+    {
+        return "FAULT_DETECT";
+    }
+    uint8_t get_id()
+    {
+        return MAVLINK_MSG_ID_FAULT_DETECT;
+    }
+    static MavlinkStream *new_instance(Mavlink *mavlink)
+    {
+        return new MavlinkStreamFaultDetection(mavlink);
+    }
+    unsigned get_size()
+    {
+        return MAVLINK_MSG_ID_FAULT_DETECT_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES;
+    }
+
+private:
+    MavlinkOrbSubscription *_sub;
+    uint64_t _fault_detect_time;
+
+    /* do not allow top copying this class */
+    MavlinkStreamFaultDetection(MavlinkStreamFaultDetection &);
+    MavlinkStreamFaultDetection& operator = (const MavlinkStreamFaultDetection &);
+
+protected:
+    explicit MavlinkStreamFaultDetection(Mavlink *mavlink) : MavlinkStream(mavlink),
+        _sub(_mavlink->add_orb_subscription(ORB_ID(fault_detection))),
+        _fault_detect_time(0)
+    {}
+
+    void send(const hrt_abstime t)
+    {
+        struct fault_detection_s _fault_detect;
+        if (_sub->update(&_fault_detect_time, &_fault_detect)) {
+            mavlink_fault_detection_t _msg_fault_detection;  //make sure mavlink_ca_trajectory_t is the definition of your custom MAVLink message
+
+            _msg_fault_detection.timestamp = _fault_detect.timestamp;//TODO this section with actual contents
+            _msg_fault_detection.time_start_usec = _fault_detect.time_start_usec;
+            _msg_fault_detection.time_stop_usec  = _fault_detect.time_stop_usec;
+            _msg_fault_detection.coefficients =_fault_detect.coefficients;
+            _msg_fault_detection.seq_id = _fault_detect.seq_id;
+
+            _mavlink->send_message(MAVLINK_MSG_ID_FAULT_DETECT, &_msg_fault_detection);
+        }
+    }
 };
 
 class MavlinkStreamAttPosMocap : public MavlinkStream
@@ -3638,5 +3695,6 @@ const StreamListItem *streams_list[] = {
 	new StreamListItem(&MavlinkStreamCollision::new_instance, &MavlinkStreamCollision::get_name_static, &MavlinkStreamCollision::get_id_static),
 	new StreamListItem(&MavlinkStreamWind::new_instance, &MavlinkStreamWind::get_name_static, &MavlinkStreamWind::get_id_static),
 	new StreamListItem(&MavlinkStreamMountOrientation::new_instance, &MavlinkStreamMountOrientation::get_name_static, &MavlinkStreamMountOrientation::get_id_static),
+	new StreamListItem(&MavlinkStreamFaultDetection::new_instance, &MavlinkStreamFaultDetection::get_name_static, &MavlinkStreamFaultDetection::get_id_static),
 	nullptr
 };
