@@ -44,7 +44,7 @@
 
 #include "mavlink_main.h"
 #include "mavlink_messages.h"
-#include <v1.0/custom_messages/mavlink_msg_fault_detection.h>
+#include <custom_messages/mavlink_msg_fault_detect.h>
 
 #include <commander/px4_custom_mode.h>
 #include <drivers/drv_pwm_output.h>
