@@ -46,6 +46,7 @@
 #include <px4_log.h>
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
+#include <uORB/topics/vehicle_gps_position.h>
 #include <drivers/drv_hrt.h>
 
 extern "C" __EXPORT int attack_main(int argc, char *argv[]);
@@ -97,21 +98,26 @@ private:
     int	_control_task = -1;		// task handle for task
     bool _task_should_exit = false;
     bool _attack_active = false;
-    int _start;
+    hrt_abstime _start;
     
     orb_advert_t _sensors_fdi_pub;
     orb_advert_t _vehicle_attitude_setpoint_fdi_pub;
+    orb_advert_t _vehicle_gps_position_fdi_pub;
     
     // parameters
     struct {
         int attack_switch;
         int attack_type;
+        float lat_ramp;
+        float lon_ramp;
     } _parameters;
     
     // parameter handles
     struct {
         param_t attack_switch_h;
         param_t attack_type_h;
+        param_t lat_ramp_h;
+        param_t lon_ramp_h;
     } _parameter_handles;
 };
 
@@ -151,8 +157,12 @@ void Attack::task_main()
     _vehicle_attitude_setpoint_fdi_pub = orb_advertise(ORB_ID(vehicle_attitude_setpoint_fdi),
             &vehicle_attitude_setpoint_fdi_fd);
     
+    struct vehicle_gps_position_s vehicle_gps_position_fdi_fd;
+    memset(&vehicle_gps_position_fdi_fd, 0, sizeof(vehicle_gps_position_fdi_fd));
+    _vehicle_gps_position_fdi_pub = orb_advertise(ORB_ID(vehicle_gps_position_fdi), &vehicle_gps_position_fdi_fd);
+    
     // initialize current time
-    //hrt_abstime now = 0;
+    hrt_abstime now = 0;
     
     /*px4_pollfd_struct_t fds[2] = {};
     fds[0].fd = sensors_sub;
@@ -164,13 +174,17 @@ void Attack::task_main()
     //updateParams(); //TODO part of block in controllib, not sure what to do, probably don't need to do anything
     
     //initialize data structures for subscribed uORB topics
-    sensor_combined_s sensors = {};
+    //sensor_combined_s sensors = {};
     
     //get the parameter handles that matter
     _parameter_handles.attack_switch_h = param_find("ATTACK_MSTR_SW");
     _parameter_handles.attack_type_h = param_find("ATTACK_TYPE");
+    _parameter_handles.lat_ramp_h = param_find("LAT_RAMP");
+    _parameter_handles.lon_ramp_h = param_find("LON_RAMP");
     
     while (!_task_should_exit) {// main loop
+        //TODO wait a bit so that this hopefully doesn't crash stuff - check other things to see how they do it.
+        usleep(10000);
         // check master attack switch (if it's off, don't do anything)
         param_get(_parameter_handles.attack_switch_h, &(_parameters.attack_switch));
         if ((_parameters.attack_switch == 1478) & (!_attack_active)) {
@@ -180,6 +194,7 @@ void Attack::task_main()
         _attack_active = (_parameters.attack_switch == 1478);
         
         if (_attack_active) {
+            now = hrt_absolute_time();
             // check which attack types are active
             param_get(_parameter_handles.attack_type_h, &(_parameters.attack_type));
             
@@ -190,42 +205,30 @@ void Attack::task_main()
                         0.7f*float(cos((hrt_absolute_time()-_start)*5e-6));
                 //publish the attack
                 orb_publish(ORB_ID(vehicle_attitude_setpoint_fdi), _vehicle_attitude_setpoint_fdi_pub, &vehicle_attitude_setpoint_fdi_fd);
-                //TODO make fw_pos_control subscribe to the attack and add it to it's publication
+                //TODO make fw_pos_control subscribe to the attack and add it to its publication
+            }
+            if (_parameters.attack_type == 2) {//GPS ramp attack
+                //update ramp amounts
+                param_get(_parameter_handles.lat_ramp_h, &(_parameters.lat_ramp));
+                param_get(_parameter_handles.lon_ramp_h, &(_parameters.lon_ramp));
+                
+                // calculate what to inject
+                vehicle_gps_position_fdi_fd.lat = (now - _start) * _parameters.lat_ramp;
+                vehicle_gps_position_fdi_fd.lon = (now - _start) * _parameters.lon_ramp;
+                
+                // publish to GPS_fdi
+                orb_publish(ORB_ID(vehicle_gps_position_fdi), _vehicle_gps_position_fdi_pub, &vehicle_gps_position_fdi_fd);
+                
+                //TODO have all GPS subscribers listen to GPS_fdi topic and add that
             }
         }
         
-        /*int ret = px4_poll(fds, sizeof(fds) / sizeof(fds[0]), 1000);
         
-        if (ret < 0) {
-            // Poll error, sleep then retry
-            usleep(10000);
-            continue;
-            
-        } else if (ret == 0) {
-            // Either timeout or nothing new
-            continue;
-        }
-        
-        if (fds[1].revents & POLLIN) {
-            // read param to unset updated flag
-            struct parameter_update_s update;
-            orb_copy(ORB_ID(parameter_update), params_sub, &update);
-            //updateParams();
-            
-            // get sensor data in next loop
-            continue;
-            
-        } else if (!(fds[0].revents & POLLIN)) {
-            // nothing new
-            continue;
-        }TODO move this block somewhere more appropriate, or possibly jsut get 
-        rid of it if the attacks don't need to read any uorb messages
-        */
         
         // update current time
         //now = hrt_absolute_time();
         
-        orb_copy(ORB_ID(sensor_combined), sensors_sub, &sensors);
+        //orb_copy(ORB_ID(sensor_combined), sensors_sub, &sensors);
         /*PX4_INFO("Attack state:\t%i\t%i",
          *           (int)now,
          *           (int)_parameters.attack_switch);
@@ -246,7 +249,7 @@ void Attack::task_main()
         sensors_fdi.baro_temp_celcius
         */
         // publish attacks
-        orb_publish(ORB_ID(sensor_combined_fdi), _sensors_fdi_pub, &sensors);//TODO
+        //orb_publish(ORB_ID(sensor_combined_fdi), _sensors_fdi_pub, &sensors);//TODO
     }
     
     //unsubscribe from orb topics
@@ -254,7 +257,9 @@ void Attack::task_main()
     orb_unsubscribe(params_sub);
     
     //unadvertise published orb topics
-    orb_unadvertise(_sensors_fdi_pub);
+    //orb_unadvertise(_sensors_fdi_pub);
+    orb_unadvertise(_vehicle_attitude_setpoint_fdi_pub);
+    orb_unadvertise(_vehicle_gps_position_fdi_pub);
 
 	//clean up the attack instance and reset
 	delete attack::instance;

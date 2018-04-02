@@ -75,7 +75,9 @@ PARAM_DEFINE_INT32(ATTACK_MSTR_SW, 0);
  * @group Attack
  * @min 0
  * @max 3
- * @bit 0 enable pitch oscillation attack
- * @bit 1 enable stealthy-to-human-observer-model attack
+ * @bit 0 (+1) enable pitch oscillation attack
+ * @bit 1 (+2) enable GPS attack
  */
-PARAM_DEFINE_INT32(ATTACK_TYPE, 0);
+PARAM_DEFINE_INT32(ATTACK_TYPE, 2);
+
+PARAM_DEFINE_FLOAT(LAT_RAMP, 2e-11);

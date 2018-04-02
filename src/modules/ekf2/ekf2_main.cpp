@@ -404,6 +404,7 @@ void Ekf2::task_main()
 	// subscribe to relevant topics
 	int sensors_sub = orb_subscribe(ORB_ID(sensor_combined));
 	int gps_sub = orb_subscribe(ORB_ID(vehicle_gps_position));
+	int gps_fdi_sub = orb_subscribe(ORB_ID(vehicle_gps_position_fdi));
 	int airspeed_sub = orb_subscribe(ORB_ID(airspeed));
 	int params_sub = orb_subscribe(ORB_ID(parameter_update));
 	int optical_flow_sub = orb_subscribe(ORB_ID(optical_flow));
@@ -426,6 +427,7 @@ void Ekf2::task_main()
 	// properly populated
 	sensor_combined_s sensors = {};
 	vehicle_gps_position_s gps = {};
+	vehicle_gps_position_s gps_fdi = {};
 	airspeed_s airspeed = {};
 	optical_flow_s optical_flow = {};
 	distance_sensor_s range_finder = {};
@@ -461,6 +463,7 @@ void Ekf2::task_main()
 		}
 
 		bool gps_updated = false;
+		bool gps_fdi_updated = false;
 		bool airspeed_updated = false;
 		bool optical_flow_updated = false;
 		bool range_finder_updated = false;
@@ -481,6 +484,12 @@ void Ekf2::task_main()
 
 		if (gps_updated) {
 			orb_copy(ORB_ID(vehicle_gps_position), gps_sub, &gps);
+		}
+		
+		orb_check(gps_fdi_sub, &gps_fdi_updated);
+
+		if (gps_fdi_updated) {
+			orb_copy(ORB_ID(vehicle_gps_position_fdi), gps_fdi_sub, &gps_fdi);
 		}
 
 		orb_check(airspeed_sub, &airspeed_updated);
@@ -599,8 +608,8 @@ void Ekf2::task_main()
 		if (gps_updated) {
 			struct gps_message gps_msg = {};
 			gps_msg.time_usec = gps.timestamp;
-			gps_msg.lat = gps.lat;
-			gps_msg.lon = gps.lon;
+			gps_msg.lat = gps.lat + gps_fdi.lat;
+			gps_msg.lon = gps.lon + gps_fdi.lon;
 			gps_msg.alt = gps.alt;
 			gps_msg.fix_type = gps.fix_type;
 			gps_msg.eph = gps.eph;
@@ -1035,8 +1044,8 @@ void Ekf2::task_main()
 			if (gps_updated) {
 				replay.time_usec = gps.timestamp;
 				replay.time_usec_vel = gps.timestamp;
-				replay.lat = gps.lat;
-				replay.lon = gps.lon;
+				replay.lat = gps.lat + gps_fdi.lat;
+				replay.lon = gps.lon + gps_fdi.lon;
 				replay.alt = gps.alt;
 				replay.fix_type = gps.fix_type;
 				replay.nsats = gps.satellites_used;

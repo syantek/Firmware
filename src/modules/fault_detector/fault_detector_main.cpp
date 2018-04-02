@@ -89,6 +89,8 @@ public:
 	void		task_main();
 
 	void print_status();
+	
+	void print_example_detection();
 
 	int task_main(int argc, char *argv[]);
 	
@@ -131,6 +133,12 @@ void Detector::print_status()
     } else {
         PX4_INFO("Detector NOT active");
     }
+    return;
+}
+
+void Detector::print_example_detection()
+{
+    PX4_WARN("Fault Detected. Residual power of 19.2 exceeds threshold of 15");
     return;
 }
 
@@ -296,7 +304,7 @@ int Detector::start()
 int detector_main(int argc, char *argv[])
 {
     if (argc < 2) {
-		PX4_WARN("usage: detector {start|stop|status}");
+		PX4_WARN("usage: detector {start|stop|status|example}");
 		return 1;
 	}
 
@@ -360,6 +368,11 @@ int detector_main(int argc, char *argv[])
 			PX4_WARN("not running");
 			return 1;
 		}
+	}
+	
+	if (!strcmp(argv[1], "example")) {
+		detector::instance->print_example_detection();
+		return 0;
 	}
 
 	PX4_WARN("unrecognized command");
