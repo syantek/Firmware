@@ -14,3 +14,5 @@ float32[4] q			# Estimated attitude as quaternion
 
 float32 pos_err			# position error 1-std for each axis (metres)
 float32 ang_err			# angular error 1-std for each axis (rad)
+
+# TOPICS vision_position_estimate vision_position_estimate_fdi

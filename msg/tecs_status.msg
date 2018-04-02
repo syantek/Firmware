@@ -26,3 +26,5 @@ float32 throttle_integ
 float32 pitch_integ
 
 uint8 mode
+
+# TOPICS tecs_status tecs_status_fdi

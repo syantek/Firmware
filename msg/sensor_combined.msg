@@ -22,3 +22,5 @@ float32[3] magnetometer_ga		# Magnetic field in NED body frame, in Gauss
 int32 baro_timestamp_relative		# timestamp + baro_timestamp_relative = Barometer timestamp
 float32 baro_alt_meter			# Altitude, already temp. comp.
 float32 baro_temp_celcius		# Temperature in degrees celsius
+
+# TOPICS sensor_combined sensor_combined_fdi
