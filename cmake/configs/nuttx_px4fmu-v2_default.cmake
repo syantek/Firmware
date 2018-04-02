@@ -100,6 +100,7 @@ set(config_module_list
 	#modules/position_estimator_inav
 	#modules/local_position_estimator
 	modules/ekf2
+    modules/fault_detector
 
 	#
 	# Vehicle Control

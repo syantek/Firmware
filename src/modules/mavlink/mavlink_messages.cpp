@@ -1801,24 +1801,28 @@ protected:
 	}
 };
 
-class MavlinkStreamFaultDetection : public MavlinkStream //XXX custom class
+class MavlinkStreamFaultDetect : public MavlinkStream //XXX custom class
 {
 public:
     const char *get_name() const
     {
-        return MavlinkStreamFaultDetection::get_name_static();
+        return MavlinkStreamFaultDetect::get_name_static();
     }
     static const char *get_name_static()
     {
         return "FAULT_DETECT";
     }
-    uint8_t get_id()
+    static uint16_t get_id_static()
     {
         return MAVLINK_MSG_ID_FAULT_DETECT;
     }
+    uint16_t get_id()
+    {
+        return get_id_static();
+    }
     static MavlinkStream *new_instance(Mavlink *mavlink)
     {
-        return new MavlinkStreamFaultDetection(mavlink);
+        return new MavlinkStreamFaultDetect(mavlink);
     }
     unsigned get_size()
     {
@@ -1830,11 +1834,11 @@ private:
     uint64_t _fault_detect_time;
 
     /* do not allow top copying this class */
-    MavlinkStreamFaultDetection(MavlinkStreamFaultDetection &);
-    MavlinkStreamFaultDetection& operator = (const MavlinkStreamFaultDetection &);
+    MavlinkStreamFaultDetect(MavlinkStreamFaultDetect &);
+    MavlinkStreamFaultDetect& operator = (const MavlinkStreamFaultDetect &);
 
 protected:
-    explicit MavlinkStreamFaultDetection(Mavlink *mavlink) : MavlinkStream(mavlink),
+    explicit MavlinkStreamFaultDetect(Mavlink *mavlink) : MavlinkStream(mavlink),
         _sub(_mavlink->add_orb_subscription(ORB_ID(fault_detection))),
         _fault_detect_time(0)
     {}
@@ -1843,15 +1847,15 @@ protected:
     {
         struct fault_detection_s _fault_detect;
         if (_sub->update(&_fault_detect_time, &_fault_detect)) {
-            mavlink_fault_detection_t _msg_fault_detection;  //make sure mavlink_ca_trajectory_t is the definition of your custom MAVLink message
+            mavlink_fault_detect_t _msg_fault_detect;  //make sure mavlink_ca_trajectory_t is the definition of your custom MAVLink message
 
-            _msg_fault_detection.timestamp = _fault_detect.timestamp;//TODO this section with actual contents
-            _msg_fault_detection.time_start_usec = _fault_detect.time_start_usec;
-            _msg_fault_detection.time_stop_usec  = _fault_detect.time_stop_usec;
-            _msg_fault_detection.coefficients =_fault_detect.coefficients;
-            _msg_fault_detection.seq_id = _fault_detect.seq_id;
+            //_msg_fault_detect.timestamp = _fault_detect.timestamp;//TODO this section with actual contents
+            //_msg_fault_detect.time_start_usec = _fault_detect.time_start_usec;
+            //_msg_fault_detect.time_stop_usec  = _fault_detect.time_stop_usec;
+            _msg_fault_detect.residual_power =_fault_detect.residual_power;
+            _msg_fault_detect.detector_threshold = _fault_detect.detector_threshold;
 
-            _mavlink->send_message(MAVLINK_MSG_ID_FAULT_DETECT, &_msg_fault_detection);
+            mavlink_msg_fault_detect_send_struct(_mavlink->get_channel(), &_msg_fault_detect);
         }
     }
 };
@@ -3695,6 +3699,6 @@ const StreamListItem *streams_list[] = {
 	new StreamListItem(&MavlinkStreamCollision::new_instance, &MavlinkStreamCollision::get_name_static, &MavlinkStreamCollision::get_id_static),
 	new StreamListItem(&MavlinkStreamWind::new_instance, &MavlinkStreamWind::get_name_static, &MavlinkStreamWind::get_id_static),
 	new StreamListItem(&MavlinkStreamMountOrientation::new_instance, &MavlinkStreamMountOrientation::get_name_static, &MavlinkStreamMountOrientation::get_id_static),
-	new StreamListItem(&MavlinkStreamFaultDetection::new_instance, &MavlinkStreamFaultDetection::get_name_static, &MavlinkStreamFaultDetection::get_id_static),
+	new StreamListItem(&MavlinkStreamFaultDetect::new_instance, &MavlinkStreamFaultDetect::get_name_static, &MavlinkStreamFaultDetect::get_id_static),
 	nullptr
 };
